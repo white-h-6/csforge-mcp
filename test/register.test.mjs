@@ -74,6 +74,7 @@ assert.ok(byName.csforge_prelist_arm.parameters.properties.id)
 assert.ok(byName.csforge_alipay_qr.parameters.properties.kind)
 assert.ok(byName.csforge_inventory.parameters.properties.availableOnly)
 assert.ok(byName.csforge_preview_assets.parameters.properties.sets)
+assert.ok(byName.csforge_alipay_qr.output.schema.properties.imagePath)
 assert.ok(tools.every((tool) => typeof tool.execute === 'function'))
 
 // Image content from MCP is saved to a temp file and surfaced as imagePath so
@@ -89,6 +90,17 @@ assert.equal(projected.ok, true)
 assert.equal(projected.imagePath, JSON.parse(projected.text).imagePath)
 assert.ok(existsSync(projected.imagePath))
 unlinkSync(projected.imagePath)
+// Some Alipay receipts label JPEG bytes as PNG; the saved file must match the bytes.
+const jpegLabeledPng = projectMcpResult({
+  content: [
+    { type: 'text', text: JSON.stringify({ state: 'ready', amountCents: 63 }) },
+    { type: 'image', data: '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgc', mimeType: 'image/png' },
+  ],
+})
+assert.equal(jpegLabeledPng.ok, true)
+assert.ok(jpegLabeledPng.imagePath.endsWith('.jpg'))
+assert.ok(existsSync(jpegLabeledPng.imagePath))
+unlinkSync(jpegLabeledPng.imagePath)
 assert.equal(skills.length, 1)
 assert.equal(skills[0].name, 'csforge')
 assert.ok(skills[0].description.includes('CSForge'))
