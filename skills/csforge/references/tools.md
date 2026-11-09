@@ -207,7 +207,8 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 - `id`：`kind=pack` 时是打包任务 UUID；`kind=furnace` 时是平台合炉编号（create 返回的 `externalId`）。
 - `kind`：`pack|furnace`，默认 pack。
 - `maxWaitMs`：0–120000，工具内部轮询等待二维码就绪。
-返回：`{ status, id, kind, qrIncluded, state, amountCents, expiresAt, message }` + MCP image content（PNG）。
+返回：`{ status, id, kind, qrIncluded, state, amountCents, amount, expiresAt, message, canRenew }` + MCP image content（PNG/JPEG）。
+- `amount` 是元为单位的两位小数字符串（如 `"0.62"`），`amountCents` 是分；**交付二维码时必须同时说明金额（元）、过期时间、任务/合炉编号与当前状态，不能只发图片**。
 - 本地插件会把图片保存为临时文件并在结果中返回 `imagePath`，可交给 Host 展示给用户。
 - **只读**：不创建订单、不支付、不提交；二维码只能转给用户本人，过期/未就绪如实告知，禁止代付。
 

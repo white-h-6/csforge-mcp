@@ -2,7 +2,7 @@
 name: csforge
 description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、预上架草稿流程、材料与磨损规则、安全红线和错误重试规范。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.3.2"
+  version: "0.3.3"
   date: "2026-11-09"
 ---
 
@@ -206,7 +206,7 @@ metadata:
 3. **进度**：`csforge_furnace_status({ operationId })` 只读轮询（`state`/`externalId`/`depositState`/`depositMessage`）；拿到平台合炉编号后也可用 `csforge_furnace_status({ furnaceId })` 核对押金。
 4. **押金**：
    - 余额（`depositMethod=balance`）：平台按一次性授权从用户 EcoSteam 余额扣款；Agent 不计算、不承诺、不确认支付。
-   - 支付宝（`depositMethod=official`）：付款码生成后，用 `csforge_alipay_qr({ kind: 'furnace', id: 平台合炉编号 })` 取二维码图片，只能发给用户本人，并提示“仅限本人扫码、过期需重新获取”。
+   - 支付宝（`depositMethod=official`）：付款码生成后，用 `csforge_alipay_qr({ kind: 'furnace', id: 平台合炉编号 })` 取二维码图片，**交付给用户时必须同时说明金额（元，两位小数）、过期时间、合炉编号与当前状态，不能只发一张图**；只能发给用户本人，并提示“仅限本人扫码、过期需重新获取”。
 5. **结果不明**（超时/网络中断）：只查 `csforge_furnace_status`，**禁止换幂等键重复创建**。
 6. 交付时给出：operationId、平台合炉编号（若有）、10 件材料+用户售价、押金方式/估算、当前状态（creating/paying/paid/alipay/failed/unknown）、下一步。
 7. 限制：Agent 入口**不创建** automatic/CD 定时合炉；合炉不会由 Agent 开炉；`csforge_save_recipe` 只保存平台配方，与合炉创建无关。
@@ -287,6 +287,7 @@ node scripts/find-extreme-float.mjs --input plan.json
 
 - 写操作前先回显“已确认参数”（数量、材料组成、目标磨损/float 目标、标题、交付步骤），再执行；创建完成后逐份列出 id + 材料 + 模拟结果。
 - 合炉交付必须包含**用户填写的每件材料售价**，并把“押金估算”和“实际扣款”分开表述；不要把 Agent 的估算当作已扣款。
+- 押金二维码交付**必须同时给出金额（元，两位小数）、过期时间、任务/合炉编号和当前状态**；只发图片视为未完成交付，用户无法判断要付多少、何时过期。
 - 表格优先；金额两位小数；float 至少 6 位小数（对齐站点显示）。
 - 明确区分：只读分析结果 / 已创建草稿 / 已发布（人工）/ 结果未知。
 - 概率、成本、期望值必须注明来源（站点预览快照 vs 库存参考价）。
