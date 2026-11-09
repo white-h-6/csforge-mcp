@@ -1,8 +1,10 @@
-# dsh-csforge-mcp
+# csforge-mcp
 
-> 仓库（私有）：<https://github.com/white-h-6/dsh-csforge-mcp>
+> 仓库（私有）：<https://github.com/white-h-6/csforge-mcp>
 >
 > 本仓库包含 CSForge Streamable HTTP MCP 桥接插件、14 个 `csforge_*` 工具，以及内置的中文 Agent Skill（`skills/csforge/SKILL.md`，含只读候选组合搜索脚本）。
+>
+> 说明：本机 DSH 插件包名仍为 `dsh-csforge-mcp`（profile 的 link/bundle 配置使用该包名）；代码仓库名为 `csforge-mcp`。
 
 本机独立插件：将 CSForge 的 Streamable HTTP MCP 接入 DeepSeek Harness，直接注册以下工具：
 
