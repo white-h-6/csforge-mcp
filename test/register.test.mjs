@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { apply, Config } from '../lib/bridge.js'
+import { existsSync, unlinkSync } from 'node:fs'
+import { apply, Config, projectMcpResult } from '../lib/bridge.js'
 
 const tools = []
 const skills = []
@@ -50,6 +51,8 @@ assert.deepEqual(
     'csforge_prelist_list',
     'csforge_prelist_simulate',
     'csforge_prelist_configure',
+    'csforge_prelist_arm',
+    'csforge_alipay_qr',
     'csforge_prelist_cancel',
     'csforge_preview_assets',
     'csforge_save_recipe',
@@ -61,9 +64,26 @@ const byName = Object.fromEntries(tools.map((tool) => [tool.name, tool]))
 assert.ok(byName.csforge_analyze_recipe.parameters.properties.timeoutMs)
 assert.ok(byName.csforge_open_page.parameters.properties.page.enum.includes('prelist'))
 assert.ok(byName.csforge_prelist_create.parameters.properties.assetIds)
+assert.ok(byName.csforge_prelist_configure.parameters.properties.paymentMethod)
+assert.ok(byName.csforge_prelist_arm.parameters.properties.id)
+assert.ok(byName.csforge_alipay_qr.parameters.properties.kind)
 assert.ok(byName.csforge_inventory.parameters.properties.availableOnly)
 assert.ok(byName.csforge_preview_assets.parameters.properties.sets)
 assert.ok(tools.every((tool) => typeof tool.execute === 'function'))
+
+// Image content from MCP is saved to a temp file and surfaced as imagePath so
+// the host can present the Alipay QR code.
+const png = Buffer.from('89504e470d0a1a0a', 'hex').toString('base64')
+const projected = projectMcpResult({
+  content: [
+    { type: 'text', text: JSON.stringify({ state: 'ready', amountCents: 12345 }) },
+    { type: 'image', data: png, mimeType: 'image/png' },
+  ],
+})
+assert.equal(projected.ok, true)
+assert.equal(projected.imagePath, JSON.parse(projected.text).imagePath)
+assert.ok(existsSync(projected.imagePath))
+unlinkSync(projected.imagePath)
 assert.equal(skills.length, 1)
 assert.equal(skills[0].name, 'csforge')
 assert.ok(skills[0].description.includes('CSForge'))

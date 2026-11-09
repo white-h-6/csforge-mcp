@@ -1,4 +1,4 @@
-# CSForge MCP 工具参考（本地 dsh-csforge-mcp / csforge_* 系列）
+# CSForge MCP 工具参考（csforge_* 系列，任何 MCP 客户端通用）
 
 > 全部工具通过本地插件桥接到站点 `https://csforge.hkui.ccwu.cc/api/agent/mcp`，使用用户自己生成的 Bearer 令牌。
 > 令牌由插件从 Windows DPAPI 文件读取；Agent 不需要、也不应该索取或输出令牌。
@@ -31,7 +31,9 @@
 | `csforge_prelist_list` | 只读 | 预上架/自动上架任务列表（精简） |
 | `csforge_prelist_simulate` | 只读 | 按当前市场价刷新预上架产物估值 |
 | `csforge_prelist_create` | 写 | 创建打包预上架草稿（锁定材料，不付款不提交） |
-| `csforge_prelist_configure` | 写 | 填写草稿标题/售价/可见性 |
+| `csforge_prelist_configure` | 写 | 填写草稿标题/售价/可见性/押金方式 |
+| `csforge_prelist_arm` | 写 | 发起发布/开启自动上架（必须网站人工批准） |
+| `csforge_alipay_qr` | 只读 | 取回支付宝押金二维码 PNG（imagePath/金额/过期时间） |
 | `csforge_prelist_cancel` | 写 | 取消预上架/自动上架任务并释放材料 |
 | `csforge_save_recipe` | 写 | 保存 EcoSteam 平台配方（不占库存、不进预上架） |
 | `csforge_open_page` | 只读（导航） | 让在线网页切换页面 |
@@ -141,7 +143,7 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
   "approvalId": "uuid"          // 仅在网站批准后重试时传
 }
 ```
-行为：服务端强制 `kind=pack`、`prelist=true`、`armed=false`、`configured=false`；材料立即锁定并从库存隐藏；**不付款、不提交、不能开启自动上架**。
+行为：服务端强制 `kind=pack`、`prelist=true`、`armed=false`、`configured=false`；材料立即锁定并从库存隐藏；**不付款、不提交、默认不开启自动上架**。发布需 `csforge_prelist_arm` 并经用户在网站批准。
 返回：`{ status, idempotencyKey, operationId, state, externalId?, message }`（202 时含 approvalRequired/approvalId 与提示）。
 
 ### csforge_prelist_configure
@@ -150,12 +152,27 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 {
   "id": "预上架 uuid",
   "title": "红色轮胎",          // ≤10 个字符
-  "sellPrice": 7.5,             // 两位小数
+  "sellPrice": 7.5,             // 两位小数，必须低于最高产物价值
   "visibility": "private",
+  "paymentMethod": "alipay",    // 可选：balance|alipay
   "approvalId": "uuid"          // 可选，仅批准后重试
 }
 ```
 返回：`{ status, id, configured, title, sellPrice, visibility, paymentMethod? }`
+
+### csforge_prelist_arm
+参数：`{ "id": "预上架 uuid", "approvalId": "uuid" }`
+- 首次调用返回 `202 approvalRequired=true + approvalId`；用户必须在网站“Agent 接入”页面批准，然后用相同 id+approvalId 重试。
+- Agent 确认未开启或用户未批准时不会发布；服务端仍按 CD、押金、平台提交校验执行。
+返回：`{ status, id, armed, scheduledAt? }`。
+
+### csforge_alipay_qr
+参数：`{ "id": "uuid", "kind": "pack", "maxWaitMs": 20000 }`
+- `kind`：`pack|furnace`，默认 pack；合炉传合炉 id。
+- `maxWaitMs`：0–120000，工具内部轮询等待二维码就绪。
+返回：`{ status, id, kind, qrIncluded, state, amountCents, expiresAt, message }` + MCP image content（PNG）。
+- 本地插件会把图片保存为临时文件并在结果中返回 `imagePath`，可交给 Host 展示给用户。
+- **只读**：不创建订单、不支付、不提交；二维码只能转给用户本人，过期/未就绪如实告知，禁止代付。
 
 ### csforge_prelist_simulate
 参数：`{ "id": "预上架 uuid" }`

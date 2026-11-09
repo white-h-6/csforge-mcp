@@ -1,8 +1,8 @@
 {
   "name": "dsh-csforge-mcp",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
-  "description": "Standalone CSForge Streamable HTTP MCP bridge for DeepSeek Harness, with an embedded CSForge Agent skill",
+  "description": "Generic CSForge Streamable HTTP MCP integration and Agent skill, with an optional DeepSeek Harness adapter",
   "type": "module",
   "main": "./lib/bridge.js",
   "exports": {

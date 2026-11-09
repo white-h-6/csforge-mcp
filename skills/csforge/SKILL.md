@@ -1,15 +1,15 @@
 ---
 name: csforge
-description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、预上架草稿流程、材料与磨损规则、安全红线和错误重试规范。Requires the local dsh-csforge-mcp plugin (or an equivalent authenticated CSForge MCP connection).
+description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、预上架草稿流程、材料与磨损规则、安全红线和错误重试规范。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.2.2"
+  version: "0.2.3"
   date: "2026-11-09"
 ---
 
 # CSForge Agent Skill
 
 > 本 Skill 面向“帮用户操作 CSForge 网站”的 Agent；站点部署、服务器运维、数据库维护不属于本 Skill 范围。
-> 命令/工具名以当前本地插件为准（`csforge_*`），站点端说明可用 `csforge_help` 复核。
+> 工具名以当前客户端注册的 `csforge_*` 为准，本文不绑定特定插件/客户端；站点端说明可用 `csforge_help` 复核。
 
 ## 何时使用
 
@@ -41,9 +41,10 @@ metadata:
 1. 目标饰品 / 收藏品、目标磨损档位（FN/MW/FT/WW/BS）、是否需要“卡极限磨损”；
 2. 要几个炉 / 几份预上架草稿（允许批量，用户要几个就几个）；
 3. 主材料数量与材料组成（例如“1 件幻光构架 + 9 件冻雨”，或让 Agent 从可用库存里选）；
-4. 打包汰换：总售价、公开或私密（售价必须严格低于最高产物价值）；
+4. 打包汰换：总售价、公开或私密、押金方式（余额或支付宝）；（售价必须严格低于最高产物价值）
 5. 合炉：给用户一张材料表（序号/名称/float/建议价列），让用户自己填写每件材料价格；Agent 不替用户定价；
 6. 两种目标都支持：只要找炉/分析结果（用户自己判断、自己上架），或由 Agent 创建预上架草稿并协助上架；开始时问清是哪种，默认先只读给方案，用户选定后才创建草稿。
+7. 若用户要 Agent 发布：确认用户接受“由 Agent 发起 arm/发布，但必须在网站 Agent 接入页面人工批准，且 Agent 不代付押金”。
 
 问清后再调用 `csforge_analyze_recipe` / `csforge_inventory` / `csforge_preview_assets`。
 
@@ -62,7 +63,8 @@ metadata:
 ## 2. 安全红线（不可协商）
 
 - **只读优先**：查询、预览、模拟先做；写操作必须来自用户明确指令。
-- **Agent 不得**：开启自动上架（arm）、发布/上架、支付/扣款、替用户决定售价/押金/公开私密；这些是网站人工步骤。
+- **发布/arm**：Agent 可以调用 `csforge_prelist_arm` 发起发布/开启自动上架，但必须经用户在网站“Agent 接入”页面一次性批准；未开启 Agent 确认时服务端直接拒绝。发布后的 CD、押金、提交仍按平台流程，结果以回执为准。
+- **Agent 不得**：替用户决定售价/押金/公开私密；替用户支付/扣款；开启自动上架后绕过用户审批；替用户确认支付结果。
 - **押金/付款不用 Agent 管**：合炉押金 = 最高产物估价 × 1.05，打包汰换押金 = 最高产物估价 × 1.4，默认余额；实际金额以平台报价为准，Agent 不计算、不承诺、不付款，用户自己支付。
 - **预上架只支持打包汰换（pack）**；合炉没有 Agent 预上架入口，不要绕道 `plans/:id/create`。
 - **写操作 202**：返回 `approvalRequired=true` + `approvalId` 时，告诉用户去网站“Agent 接入”批准；重试必须使用**完全相同**的方法/路径/JSON 参数与 `approvalId`，`idempotencyKey` 不变。
@@ -120,10 +122,11 @@ metadata:
 
 1. **创建**：`csforge_prelist_create`，`name` 即平台标题（≤10 个字符），`assetIds` 恰好 10 个不同资产；`idempotencyKey` 可省略（结果会返回，重试必须复用）。成功后材料立即锁定并隐藏，不付款、不提交。
 2. **核对**：`csforge_prelist_list`（`view=active, phase=prelist`）确认 `prelist=true, armed=false, configured=false`、10 件材料匹配；需要刷新估值用 `csforge_prelist_simulate`（只更新缓存）。
-3. **发布信息**：只有用户明确给出标题/售价/公开私密后才调用 `csforge_prelist_configure`；不要替用户定价。**总售价必须严格低于最高产物价值**；`title` ≤10、`sellPrice` 两位小数、`visibility=private|public`。
-4. **人工发布**：用户在网站“预上架”栏目审核并点击发布/开启自动上架；Agent 不得 arm（服务端 403）。有冷却的材料发布后会到期自动上架，并从余额自动扣押金；押金/余额由用户处理，Agent 不承诺金额。
-5. **取消**：`csforge_prelist_cancel`（写操作，可能需要确认），释放材料锁。
-6. 交付时给出：预上架 id、名称、10 件材料清单、模拟目标产物 float/概率、成本/期望值、当前状态、下一步（用户填发布信息/发布）。
+3. **发布信息**：只有用户明确给出标题/售价/公开私密后才调用 `csforge_prelist_configure`；不要替用户定价。**总售价必须严格低于最高产物价值**；`title` ≤10、`sellPrice` 两位小数、`visibility=private|public`；押金选择支付宝时传 `paymentMethod=alipay`。
+4. **发布/arm**：用户明确要 Agent 发布时，调用 `csforge_prelist_arm`（首次返回 202+approvalId）；告知用户在网站“Agent 接入”页面批准，然后用相同 id+approvalId 重试。用户未批准或关闭 Agent 确认时不得发布，也不要改用其他接口绕过。发布后按 CD、押金和平台提交流程执行。
+5. **支付宝押金二维码**：配置 `paymentMethod=alipay` 并且 arm 成功后，调用只读工具 `csforge_alipay_qr`（可用 `maxWaitMs` 轮询等待）取二维码；返回结果含 `imagePath`、金额和过期时间。把二维码图片发给用户本人（可 `present` 图片文件），并提示“仅限本人扫码、过期需重新获取”；**Agent 不代付、不确认支付、不发到群聊**。二维码未就绪（冷却中/后台生成中）时如实告知，稍后再查。
+6. **取消**：`csforge_prelist_cancel`（写操作，可能需要确认），释放材料锁。
+7. 交付时给出：预上架 id、名称、10 件材料清单、模拟目标产物 float/概率、成本/期望值、当前状态、押金方式、下一步（用户批准发布/扫码付款）。
 
 ### 6.1 合炉（Agent 不创建）
 
@@ -145,7 +148,9 @@ metadata:
 | 标题报错 | 平台标题 ≤10 个字符；改为简短中文名 |
 | 材料被占用/不可用 | 重新 `csforge_inventory`；`locked`/`prelisted` 的资产不可再用 |
 | 预上架不存在/已处理 | 重新 `csforge_prelist_list`，不要重复创建 |
-| Agent arm 返回 403 | 正常安全限制；提示用户人工操作 |
+| Agent arm 返回 403 | 通常表示网站未开启 Agent 确认，或请求未经审批；提示用户到网站开启确认并批准后重试，不要绕过 |
+| 支付宝二维码未就绪 | 冷却中或后台生成中；用 `csforge_alipay_qr` 稍后再查，或让用户等待；已过期则重新获取/续期 |
+| 用户拒绝/关闭 Agent 审批 | 停止发布流程，转为用户在网站人工发布；不要反复提交 |
 | ECO 平台拒绝（如 ResultCode 1/2001） | 读 `message`，常见为令牌未绑定/参数/价格规则；不要盲目重试 |
 | 响应过大/超时 | 用专用工具；`csforge_request` 只作兜底，禁止拉原始库存 |
 | 创建后 202 | 等用户批准，再用相同参数+approvalId+同 idempotencyKey 重试 |
