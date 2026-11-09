@@ -49,7 +49,7 @@
 
 包内 Agent Skill：`skills/csforge/SKILL.md`（含 `references/tools.md` 与只读候选搜索脚本 `scripts/find-extreme-float.mjs`）。Skill 内容包括：何时使用、工具选择、预上架/合炉/打包汰换业务流程、材料与磨损规则、安全红线和错误重试规范。它是通用 Markdown，不依赖 DSH；DSH 适配器会在加载时通过 `ctx.skills.register(...)` 把它注册为 runtime skill。
 
-Agent 行为边界：不复制站内业务校验，不自动批准写操作，也不开放账户、管理员或令牌管理接口。预上架的发布/arm 可由 Agent 发起，但必须经用户在网站“Agent 接入”页面一次性批准；押金二维码用只读工具 `csforge_alipay_qr` 获取并转给用户本人，Agent 不代付。
+Agent 行为边界：不复制站内业务校验，不自动批准写操作，也不开放账户、管理员或令牌管理接口。网站“Agent 接入”页面分别提供普通操作和敏感操作两个确认开关：敏感操作（发布/arm、押金/支付、求购、下架/改价等）开启时需要用户一次性批准，关闭时 Agent 会直接执行；普通操作（草稿创建/配置/取消、保存配方等）同理。押金二维码用只读工具 `csforge_alipay_qr` 获取并转给用户本人，Agent 不代付。
 
 ## 安全边界
 
