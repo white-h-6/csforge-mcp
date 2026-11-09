@@ -1,8 +1,8 @@
 {
   "name": "dsh-csforge-mcp",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": true,
-  "description": "Generic CSForge Streamable HTTP MCP integration and Agent skill, with an optional DeepSeek Harness adapter",
+  "description": "Generic CSForge Streamable HTTP MCP integration and Agent skill, plus an optional local tool-bridge adapter",
   "type": "module",
   "main": "./lib/bridge.js",
   "exports": {
@@ -20,6 +20,7 @@
     "lib/bridge.js",
     "cordis.patch.yml",
     "README.md",
+    "docs/**",
     "locale/*.json",
     "skills/**"
   ],
