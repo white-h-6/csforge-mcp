@@ -1,0 +1,41 @@
+{
+  "name": "dsh-csforge-mcp",
+  "version": "0.2.3",
+  "private": true,
+  "description": "Standalone CSForge Streamable HTTP MCP bridge for DeepSeek Harness, with an embedded CSForge Agent skill",
+  "type": "module",
+  "main": "./lib/bridge.js",
+  "exports": {
+    ".": {
+      "default": "./lib/bridge.js"
+    },
+    "./bridge": {
+      "default": "./lib/bridge.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "lib/bridge.js",
+    "cordis.patch.yml",
+    "README.md",
+    "locale/*.json",
+    "skills/**"
+  ],
+  "scripts": {
+    "check": "node --check lib/bridge.js",
+    "test": "node test/register.test.mjs && node test/find-extreme-float.test.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
+    "@deepseek-ai/schemastery": "~3.18.5"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}

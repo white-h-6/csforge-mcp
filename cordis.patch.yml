@@ -1,0 +1,10 @@
+# Bundle patch for dsh-csforge-mcp.
+#
+# One row only: the switchable MCP tool bridge, mounted from the package main
+# (lib/bridge.js) so the Plugins page shows it under the package display name
+# `csforge-mcp`. The former `csforge-control` row and its browser half are gone,
+# so this package adds nothing to the left panel list and no longer exposes a
+# control page. The bridge row is switched from the built-in Plugins page.
+- insert:
+    - id: csforge-mcp
+      name: 'dsh-csforge-mcp'

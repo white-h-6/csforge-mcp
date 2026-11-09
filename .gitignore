@@ -1,0 +1,7 @@
+# Dependencies are installed per profile; never version them here.
+node_modules/
+
+# Local logs and OS artifacts
+*.log
+.DS_Store
+Thumbs.db

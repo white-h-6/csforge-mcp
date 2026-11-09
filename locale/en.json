@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "csforge-mcp",
+    "description": "Adds CSForge tools for help, identity/account status, skin search, recipe analysis, compact inventory, prelist drafts, batch previews, recipe saving, business API requests, and page navigation, plus an embedded CSForge Agent skill playbook."
+  }
+}
