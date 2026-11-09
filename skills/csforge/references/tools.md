@@ -1,8 +1,7 @@
 # CSForge MCP 工具参考（csforge_* 系列，任何 MCP 客户端通用）
 
-> 全部工具通过本地插件桥接到站点 `https://csforge.hkui.ccwu.cc/api/agent/mcp`，使用用户自己生成的 Bearer 令牌。
-> 令牌由插件从 Windows DPAPI 文件读取；Agent 不需要、也不应该索取或输出令牌。
-> 写操作默认需要网站“Agent 接入”页面确认；返回 `202 approvalRequired=true + approvalId` 时按“确认流程”重试。
+> 本文件描述工具参数与返回语义，与部署无关；示例中的名称/数量/价格仅示意，可能过期。
+> 本部署快照（昵称映射、实测价格/金额、工具数量）见 `references/deployment-notes.md`，使用前用工具复核。
 
 ## 业务规则速记（2026-11-09 用户确认）
 

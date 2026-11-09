@@ -49,7 +49,7 @@
 
 ## Agent Skill
 
-`skills/csforge/SKILL.md` 是纯 Markdown 操作手册（含 `references/tools.md` 与只读候选搜索脚本 `scripts/find-extreme-float.mjs`），可被任何能读取文件的 Agent 加载。内容包括：何时使用、工具选择、预上架/合炉/打包汰换流程、材料与磨损规则、安全红线和错误重试规范。
+`skills/csforge/SKILL.md` 是纯 Markdown 操作手册（含 `references/tools.md`、`references/deployment-notes.md`（本部署快照：昵称/实测金额，使用前复核）与只读候选搜索脚本 `scripts/find-extreme-float.mjs`），可被任何能读取文件的 Agent 加载。内容包括：何时使用、工具选择、预上架/合炉/打包汰换流程、材料与磨损规则、安全红线和错误重试规范。
 
 ## 使用约定
 
