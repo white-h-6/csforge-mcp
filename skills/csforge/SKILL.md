@@ -54,16 +54,17 @@ metadata:
 | 编号 | 字段 | 确认到可执行的值 | 明确禁止 |
 |---|---|---|---|
 | N1 | 目标饰品/收藏品 | 正式名 + skinId（昵称先查目录） | 用昵称猜皮肤 |
-| N2 | 目标磨损档位 + 是否卡极限 | FN/MW/FT/WW/BS；卡极限时给出边界（如严格 <0.07） | 自行假定 FN 或“越极限越好” |
+| N2 | 目标磨损档位 + 是否卡极限 | FN/MW/FT/WW/BS；卡极限时给出边界（如严格 <0.07）；同时确认**产物 float 目标**（只要 <边界，还是贴边到 0.0699 这种精度） | 自行假定 FN 或“越极限越好” |
 | N3 | 数量 | 具体数字（1、2、3…） | 把“多个”自行解释成上限或下限（如“最多能做 N 份就建 N 份”） |
-| N4 | 材料组成 | 主材料件数 + 其余材料来源（例：“1 件 A 收藏材料 + 9 件 B 收藏材料”，或明确“由 Agent 从可用库存选”） | 把历史配方当默认 |
+| N4 | 材料组成 | 主材料件数 + 其余材料来源（例：“1 件 A 收藏材料 + 9 件 B 收藏材料”，或明确“由 Agent 从可用库存选”）；同时确认**辅料范围**（是否只限一种辅料、是否允许任意同稀有度消费级饰品） | 把历史配方当默认 |
 | N5 | 交付步骤 | ①只读方案 ②只建草稿 ③草稿+填发布信息 ④ Agent 发起 arm（需网站人工批准）⑤ 创建合炉（需逐件给价） | 先建草稿/先建炉再补问 |
 | N6 | 发布信息（N5≥③ 或 N5=⑤ 时必填） | 打包：标题（≤10 字符）、总售价、公开/私密、押金方式；合炉：标题、公开/私密、押金方式（余额/支付宝）、开炉费设置，以及**用户逐件给出的材料售价** | 替用户定价、定可见性、选押金 |
 
 #### 0.2.3 一次问清（推荐做法）
 
 - 用**一次** `ask_user_question` 或一条编号清单把 N1–N6 问完，给推荐项和真实约束，避免多轮拉锯。
-- 需要真实数字时，用 §0.2.1 允许的**有界只读查询**获取，并注明来源与时间；不要把历史快照或记忆里的数字当当前事实。
+- **材料池一次问全**：主料件数、辅料是否限品种（例如“是否只能用冻雨，还是任意同稀有度消费级饰品都行”）、是否允许冷却中材料、产物 float 精度。辅料池问窄了会导致建完再重建——这是最贵的返工来源。
+- 需要真实数字时，用 §0.2.1 允许的**有界只读查询**获取，并注明来源与时间；不要把历史快照或记忆里的数字当当前事实。只读查询可用 `csforge_inventory_summary`（一次拿到“某皮肤 N 件 + 磨损分布”）代替逐件大响应。
 - 数量与贴边冲突时给两种真实选项（例如“N 份可贴近边界；M 份为材料上限、边界余量更大”），让用户在数量与贴边之间选择。
 - 用户回复“就按推荐/用这个”也视为确认，但必须**回显最终参数**再执行。
 - 用户未回答的项：不要用默认值继续；要么请其确认推荐值，要么停止。
@@ -105,12 +106,14 @@ metadata:
 
 1. 身份：`csforge_whoami`
 2. 目录/配方：`csforge_find_skins` → `csforge_analyze_recipe`
-3. 库存：`csforge_inventory`（**永远不要**用 `csforge_request` 拉原始 `GET /api/execution/inventory`，体积大且字段冗余）
-4. 候选炉验证：`csforge_preview_assets`（一次 1–5 组）
-5. 预上架：`csforge_prelist_create` → `csforge_prelist_list` / `csforge_prelist_simulate` → `csforge_prelist_configure` →（用户人工发布）
+3. 库存：`csforge_inventory`（逐件细查）/ `csforge_inventory_summary`（**一次聚合全量库存**：每种皮肤件数、ready/available/locked/prelisted 计数、float 最小/最大/平均；可选 `skinIds`/`includeIds`）
+4. 候选炉验证：`csforge_preview_assets`（一次 1–5 组）/ `csforge_preview_many`（一次 1–100 组，自动按 5 组分片并发；传 `targetSkinId` 只回目标产物行，响应小很多）
+5. 预上架：`csforge_prelist_create` → `csforge_prelist_list`（含材料明细，较大）/ `csforge_prelist_brief`（精简状态，无 10 件材料）→ `csforge_prelist_configure` →（用户人工发布）；**批量（≥3 炉）优先用**：`csforge_prelist_create_configure_many`（一次完成建草稿+填发布信息）、`csforge_prelist_create_many`、`csforge_prelist_configure_many`、`csforge_prelist_cancel_many`
 6. 合炉（Agent 可创建）：`csforge_furnace_create`（10 件材料 + 用户逐件售价 + 押金方式）→ `csforge_furnace_status`（只读轮询）→ 支付宝押金用 `csforge_alipay_qr(kind=furnace)`
 7. 页面导航：`csforge_open_page`（支持 `prelist` 深链）
 8. 兜底：`csforge_request` 只用于上述专用工具未覆盖的业务接口；账户、管理员、令牌管理接口不可用
+
+> 批量工具内部已做并发（默认 5，可调 1–8）与“库存状态已变化/分页重复”等瞬时错误的指数退避重试；只读工具（含 `preview_many`、`prelist_brief`、`inventory_summary`）标记为可并发。批量写仍受 §0.2 参数确认门禁约束，且批量模式不处理网站 202 确认，遇到 `approvalRequired` 的条目需人工逐条处理。
 
 ## 2. 安全红线（不可协商）
 
@@ -160,13 +163,15 @@ metadata:
 ## 5. 工作流 B：找炉 / 卡磨损（只读优先）
 
 1. 开始前必须先完成 §0.2 需求确认；确认后明确四要素：目标饰品（skinId/名称）、目标磨损（FN/MW/FT/WW/BS）、材料组成、硬约束（只用可上架材料、尽量卡 0.07、成本上限等）。
-2. 用 `csforge_preview_assets` 验证候选（1–5 组，每组 10 个不同 assetId），以站点返回的 `outcomes[].float/wear/probability/price` 为准。
+2. 用 `csforge_preview_assets`（1–5 组）或 `csforge_preview_many`（1–100 组，传 `targetSkinId` 只回目标产物）验证候选，以站点返回的 `outcomes[].float/wear/probability/price` 为准。
 3. 磨损规则（站点 `normalized-2025-10`）：先对每件材料按自身区间归一化 `(float-min)/(max-min)`，取平均后映射到目标区间 `目标float = 目标min + 平均 × (目标max - 目标min)`。
 4. 磨损边界：`float < 0.07` 为崭新出厂（FN），**恰好 0.07 属于略有磨损**。“卡到 0.07 以内/刚刚崭新”应贴近但严格小于 0.07（例如 ≤0.06999），不要取 0.07。
 5. 需要精确搜索时：先算候选组合的平均归一化磨损，再逐组用 `csforge_preview_assets` 复核；不要只靠本地公式就创建草稿。
 6. **磨损目标策略**：用户说“卡到 X 以内/刚刚崭新”时，默认按“越极限越好”处理，即在满足档位的前提下尽量贴近边界（例如目标 0.07 以内就尽量做到 ≤0.06999）。
    - 能做到但达不到极限时也要如实报告差距：例如用户要求 0.0699，实际只能做到 0.068，应明确报告“达到档位但未达到极限 0.0699”；
    - 无法满足目标档位/边界时，明确说明不可行，不要硬做或改口径。
+
+**求解器（多炉批量必用）**：先按 §10 的 `scripts/plan-packs.mjs` 做预算式分配——它一次输出“N 炉各用哪 10 件材料 + 每炉预测 float + 是否能贴到目标 + 若不能则可达上限是多少”，100ms 级完成。然后把 `plan.packs` 转成 `csforge_preview_many` 的 `sets`（main + 9 件 fillers）批量复核，全部通过后再进入 §6 创建。**不要**再靠“排序 + 逐炉试错”手工组炉；也不要先建一部分草稿再发现后面材料不够。
 7. 展示多个炉时给出：方案、10 件材料（名称+float）、目标产物 float/概率、材料成本、期望值/收益、风险提示（概率低、混合收藏稀释等）。默认按“目标产物最贴边优先，其次成本/期望”排序；**用户要几个方案就给几个方案**（“方案”是只读展示，不创建）。
 8. 等用户选定方案后再进入创建流程；**不要**自动创建预上架或替用户下单。创建份数以 §0.2 N3 用户确认的数字为准（允许批量，但不得自行取材料上限）。
 
@@ -180,7 +185,8 @@ metadata:
 4. **发布/arm**：用户明确要 Agent 发布时，调用 `csforge_prelist_arm`（首次返回 202+approvalId）；告知用户在网站“Agent 接入”页面批准，然后用相同 id+approvalId 重试。用户未批准或关闭 Agent 确认时不得发布，也不要改用其他接口绕过。发布后按 CD、押金和平台提交流程执行。
 5. **支付宝押金二维码**：配置 `paymentMethod=alipay` 并且 arm 成功后，调用只读工具 `csforge_alipay_qr`（可用 `maxWaitMs` 轮询等待）取二维码；把二维码图片和**金额、过期时间、任务编号、当前状态**一起交付（见 §11），限本人扫码，**Agent 不代付、不确认支付、不发到群聊**。二维码未就绪时如实告知，稍后再查。
 6. **取消**：`csforge_prelist_cancel`（写操作，可能需要确认），释放材料锁。
-7. 交付时给出：预上架 id、名称、10 件材料清单、模拟目标产物 float/概率、成本/期望值、当前状态、押金方式、下一步（用户批准发布/扫码付款）。
+7. **批量（≥3 炉）**：用 `csforge_prelist_create_configure_many`（一次调用完成“建草稿 + 填发布信息”，内部并发 + 瞬时错误重试），或分开用 `csforge_prelist_create_many` + `csforge_prelist_configure_many`；状态核对用 `csforge_prelist_brief`（精简，无材料明细）而不是每次都拉 `csforge_prelist_list`。批量写同样必须先完成 §0.2 确认；批量模式不处理网站 202 确认，逐条失败可单独重试。
+8. 交付时给出：预上架 id、名称、10 件材料清单、模拟目标产物 float/概率、成本/期望值、当前状态、押金方式、下一步（用户批准发布/扫码付款）。
 
 ### 6.1 合炉（Agent 可创建，敏感操作）
 
@@ -289,6 +295,36 @@ node scripts/find-extreme-float.mjs --input plan.json
 2. 脚本不读价格、不计算概率/期望收益、不联网，也不能代替平台回执；这些仍用 preview/simulate。
 3. 无法满足边界时脚本返回 `infeasible` 和最接近结果，需向用户报告差距，不要硬做或改口径。
 4. 极端贴边属于目标而非保证：报告预测 float 与边界的实际余量，最终以站点 preview 与平台结果为准。
+
+### 10.1 plan-packs.mjs（预算式配炉求解器，批量组炉首选）
+
+路径：`scripts/plan-packs.mjs`（随插件/Skill 分发；Node 运行，**无网络、无令牌、无第三方依赖**）。
+
+用途：给定目标区间、边界、目标产物 float、主料列表和辅料池（每件含 `minFloat/maxFloat/float`），**一次算出所有炉的材料分配**，并对不可行目标直接给出“可达上限”。相比 §10 的逐组搜索，它解决的是“先建一部分草稿、才发现材料池撑不到目标”的返工问题。
+
+```bash
+node scripts/plan-packs.mjs --input plan.json            # 文本结果
+node scripts/plan-packs.mjs --input plan.json --json     # JSON，便于拼 preview/create 批次
+node scripts/plan-packs.mjs --input plan.json --target 0.0699
+```
+
+输入示例：
+
+```json
+{
+  "target": { "name": "<目标饰品>", "minFloat": 0, "maxFloat": 0.55, "boundary": 0.07 },
+  "targetFloat": 0.0699,
+  "slotsPerPack": 9,
+  "mains":   [{ "assetId": "...", "minFloat": 0, "maxFloat": 0.8, "float": 0.373 }],
+  "fillers": [{ "assetId": "...", "minFloat": 0, "maxFloat": 0.7, "float": 0.058 }]
+}
+```
+
+- `status`：`feasible`（目标可达）/ `reduced`（不可行，已自动降到可达上限并在 `warnings` 说明）/ `partial`（部分炉材料不够）/ `infeasible`（主料本身已越过边界，任何辅料都救不回来）。
+- `packs[]`：`mainAssetId`、`fillerAssetIds`（9 件）、`predictedFloat`、`gap`、`wear`；`summary` 给 min/max/avg 与 `allBelowBoundary`。
+- 算法：归一化 → 每炉预算 `demand = 10 × allowedAverage − 主料归一化值` → 可行性预检（单炉最大 9 件和 + 总供给）→ 定向选材（k 件高磨损辅料 + 剩余槽位最优窗口）→ 未用材料 1-swap + 跨炉交换把每炉顶到预算上限。
+- 实测（25 炉 / 295 件备选池）：全部排到 **0.069895–0.069900**（gap≈0.0001），运行约 **100ms**。
+- 规则：求解器只产出候选，**创建前必须用 `csforge_preview_many`（传 `targetSkinId`）复核**；不可行时如实报告可达上限，不要硬做或改口径。
 
 ## 11. 交付格式
 

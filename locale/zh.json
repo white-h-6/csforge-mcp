@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "csforge-mcp",
-    "description": "向 Agent 提供 CSForge 帮助、身份/账号、饰品搜索、配方分析、精简库存、预上架草稿、批量预览、配方保存、业务接口请求和页面切换等工具，并内置 CSForge Agent Skill 操作手册。"
+    "description": "向 Agent 提供 CSForge 帮助、身份/账号、饰品搜索、配方分析、精简库存与库存聚合、预上架草稿/批量创建配置取消、批量预览、配方保存、业务接口请求和页面切换等工具，并内置 CSForge Agent Skill 操作手册与配炉求解脚本。"
   }
 }

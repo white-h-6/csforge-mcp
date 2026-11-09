@@ -60,9 +60,39 @@ assert.deepEqual(
     'csforge_save_recipe',
     'csforge_request',
     'csforge_open_page',
+    'csforge_prelist_create_many',
+    'csforge_prelist_configure_many',
+    'csforge_prelist_create_configure_many',
+    'csforge_prelist_cancel_many',
+    'csforge_preview_many',
+    'csforge_prelist_brief',
+    'csforge_inventory_summary',
   ],
 )
 const byName = Object.fromEntries(tools.map((tool) => [tool.name, tool]))
+assert.ok(byName.csforge_prelist_create_many.parameters.properties.items)
+assert.ok(byName.csforge_prelist_create_many.parameters.properties.concurrency)
+assert.ok(byName.csforge_prelist_create_configure_many.parameters.properties.configure)
+assert.ok(byName.csforge_prelist_cancel_many.parameters.properties.ids)
+assert.ok(byName.csforge_preview_many.parameters.properties.targetSkinId)
+assert.ok(byName.csforge_inventory_summary.parameters.properties.includeIds)
+assert.equal(typeof byName.csforge_preview_assets.isConcurrencySafe, 'function')
+assert.equal(byName.csforge_prelist_brief.isConcurrencySafe({}), true)
+assert.equal(byName.csforge_inventory_summary.isConcurrencySafe({}), true)
+assert.equal(byName.csforge_preview_many.isConcurrencySafe({}), false)
+assert.equal(
+  byName.csforge_preview_many.isConcurrencySafe({
+    steamId: '76561199538876525',
+    sets: [{ assetIds: Array.from({ length: 10 }, (_, index) => `asset-${index}`) }],
+  }),
+  true,
+)
+assert.equal(
+  byName.csforge_prelist_create_many.isConcurrencySafe({
+    items: [{ name: '标题', assetIds: Array.from({ length: 10 }, (_, index) => `asset-${index}`) }],
+  }),
+  false,
+)
 assert.ok(byName.csforge_analyze_recipe.parameters.properties.timeoutMs)
 assert.ok(byName.csforge_open_page.parameters.properties.page.enum.includes('prelist'))
 assert.ok(byName.csforge_prelist_create.parameters.properties.assetIds)

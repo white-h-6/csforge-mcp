@@ -258,3 +258,33 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 - 超时/连接中断/响应异常：先 `csforge_prelist_list` 或读取原业务状态核对；
 - **不要**换 `idempotencyKey` 重新提交，可能重复创建或重复付款；
 - 明确被平台拒绝（如 ECO `ResultCode=1/2001`）时，读 `message` 并转告用户，不要盲目重试。
+
+## 批量 / 精简工具（v0.3.0 新增，本地桥实现）
+
+> 这些工具由本地工具桥执行：内部并发（默认 5，可调 1–8）、对“库存状态已变化 / 分页重复 / 超时”等**执行前**失败做指数退避重试；只读工具标记为可并发。批量写仍受 Agent Skill §0.2 参数确认约束；批量模式不处理网站 202 确认，遇到 `approvalRequired` 的条目需人工逐条处理。
+
+### csforge_prelist_create_many
+参数：`{ "items": [{"name":"标题","assetIds":[10 个],"visibility":"public"}], "concurrency": 5 }`（1–50 条）
+- 返回逐项 `{index, ok, id, operationId, state, error?, approvalRequired?}`；`id`（= operationId）可直接用于 configure / cancel。
+
+### csforge_prelist_configure_many
+参数：`{ "items": [{"id":"uuid","title":"标题","sellPrice":7.5,"visibility":"public","paymentMethod":"alipay"}], "concurrency": 5 }`（1–50 条）
+
+### csforge_prelist_create_configure_many
+参数：`{ "items":[{"name","assetIds","visibility?"}], "configure":{"title?","sellPrice","visibility","paymentMethod?"}, "concurrency":5 }`
+- 一步完成“建草稿 + 填发布信息”；返回逐项 `{index, ok, id, state, configured, error}`。仍不 arm、不付款、不提交。
+
+### csforge_prelist_cancel_many
+参数：`{ "ids": ["uuid", ...], "kind": "pack", "concurrency": 5 }`（1–100 条）
+
+### csforge_preview_many
+参数：`{ "steamId":"17 位", "sets":[{"assetIds":[10 个]}], "targetSkinId":"skin-...", "concurrency":3 }`（1–100 组）
+- 自动按站点上限 5 组分片并发；传 `targetSkinId` 时每项只回 `target`（该产物的 float/wear/概率），否则回精简 outcomes；另给 `minFloat/maxFloat`。
+
+### csforge_prelist_brief
+参数：`{ "view":"active", "kind":"pack", "phase":"all" }`
+- 返回 counts + 每个任务的 id/名称/状态/armed/configured/价格/可见性/材料件数，不含 10 件材料明细。
+
+### csforge_inventory_summary
+参数：`{ "skinIds":["skin-..."], "includeIds":false, "limit":200 }`
+- 一次读取完整库存快照并按 skinId 聚合：件数、ready/available/locked/prelisted 计数、float min/max/avg；`includeIds=true` 时附带 assetId 列表。

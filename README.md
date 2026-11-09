@@ -2,7 +2,7 @@
 
 > 仓库：<https://github.com/white-h-6/csforge-mcp>
 >
-> CSForge Streamable HTTP MCP 的通用接入资料：中文 Agent Skill、18 个 `csforge_*` 工具约定、只读候选组合搜索脚本，以及一个可选的本地工具桥适配器（说明见 `docs/local-adapter.md`）。核心内容不绑定任何客户端，任何支持 Streamable HTTP MCP 的 Agent 都可以直接接入。
+> CSForge Streamable HTTP MCP 的通用接入资料：中文 Agent Skill、25 个 `csforge_*` 工具约定（含批量/精简工具）、两个只读计算脚本（候选搜索 + 预算式配炉求解器），以及一个可选的本地工具桥适配器（说明见 `docs/local-adapter.md`）。核心内容不绑定任何客户端，任何支持 Streamable HTTP MCP 的 Agent 都可以直接接入。
 
 ## 通用 MCP 接入
 
@@ -26,7 +26,7 @@
 }
 ```
 
-接入后先调用 `csforge_help` / `csforge_whoami`。工具名统一为 `csforge_*`，共 18 个：
+接入后先调用 `csforge_help` / `csforge_whoami`。工具名统一为 `csforge_*`，共 25 个（18 个业务工具 + 7 个批量/精简工具）：
 
 - `csforge_help`
 - `csforge_whoami`
@@ -46,10 +46,21 @@
 - `csforge_save_recipe`
 - `csforge_request`
 - `csforge_open_page`
+- `csforge_prelist_create_many`（批量建草稿，内部并发 + 瞬时错误退避重试）
+- `csforge_prelist_configure_many`（批量填发布信息）
+- `csforge_prelist_create_configure_many`（一步“建草稿 + 填发布信息”）
+- `csforge_prelist_cancel_many`（批量取消并释放材料锁）
+- `csforge_preview_many`（1–100 组批量预览，自动分片，可只回目标产物）
+- `csforge_prelist_brief`（预上架精简状态，无 10 件材料明细）
+- `csforge_inventory_summary`（全量库存按 skinId 聚合：件数 / 可用性 / float 分布）
+
+> 批量/精简工具由本地桥实现，适合“一次配置几十炉”的场景；批量写仍必须先完成 Agent Skill §0.2 的参数确认，且批量模式不处理网站 202 确认。性能取舍与站点侧建议见 `docs/performance-optimizations.md`。
 
 ## Agent Skill
 
-`skills/csforge/SKILL.md` 是纯 Markdown 操作手册（含 `references/tools.md`、`references/deployment-notes.md`（本部署快照：昵称/实测金额，使用前复核）与只读候选搜索脚本 `scripts/find-extreme-float.mjs`），可被任何能读取文件的 Agent 加载。内容包括：何时使用、工具选择、预上架/合炉/打包汰换流程、材料与磨损规则、安全红线和错误重试规范。
+`skills/csforge/SKILL.md` 是纯 Markdown 操作手册（含 `references/tools.md`、`references/deployment-notes.md`（本部署快照：昵称/实测金额，使用前复核）与只读脚本 `scripts/find-extreme-float.mjs`、`scripts/plan-packs.mjs`），可被任何能读取文件的 Agent 加载。内容包括：何时使用、工具选择、预上架/合炉/打包汰换流程、材料与磨损规则、安全红线和错误重试规范。
+
+`scripts/plan-packs.mjs` 是批量配炉求解器：输入目标区间/边界/目标产物 float/主料/辅料池，输出每炉材料分配、预测 float 与“目标不可达时的可达上限”，100ms 级完成 25 炉；创建前仍须用 `csforge_preview_many` 复核。
 
 ## 使用约定
 
@@ -62,6 +73,6 @@
 
 ## 可选：本地工具桥适配器
 
-本仓库还包含一个可选的本地工具桥，用于在支持 Cordis 加载器的本地 Harness 中注册同样的 18 个工具并加载内置 Skill。安装、profile 配置、令牌保存和启停方式见 [docs/local-adapter.md](docs/local-adapter.md)。
+本仓库还包含一个可选的本地工具桥，用于在支持 Cordis 加载器的本地 Harness 中注册同样的 25 个工具并加载内置 Skill。安装、profile 配置、令牌保存和启停方式见 [docs/local-adapter.md](docs/local-adapter.md)。
 
 普通 MCP 客户端无需安装这个适配器。
