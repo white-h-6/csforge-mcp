@@ -48,7 +48,9 @@ assert.deepEqual(
     'csforge_analyze_recipe',
     'csforge_inventory',
     'csforge_prelist_create',
+    'csforge_furnace_create',
     'csforge_prelist_list',
+    'csforge_furnace_status',
     'csforge_prelist_simulate',
     'csforge_prelist_configure',
     'csforge_prelist_arm',
@@ -64,6 +66,9 @@ const byName = Object.fromEntries(tools.map((tool) => [tool.name, tool]))
 assert.ok(byName.csforge_analyze_recipe.parameters.properties.timeoutMs)
 assert.ok(byName.csforge_open_page.parameters.properties.page.enum.includes('prelist'))
 assert.ok(byName.csforge_prelist_create.parameters.properties.assetIds)
+assert.ok(byName.csforge_furnace_create.parameters.properties.prices)
+assert.ok(byName.csforge_furnace_create.parameters.properties.estimatedDepositCents)
+assert.ok(byName.csforge_furnace_status.parameters.properties.operationId)
 assert.ok(byName.csforge_prelist_configure.parameters.properties.paymentMethod)
 assert.ok(byName.csforge_prelist_arm.parameters.properties.id)
 assert.ok(byName.csforge_alipay_qr.parameters.properties.kind)

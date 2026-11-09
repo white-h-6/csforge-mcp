@@ -2,7 +2,7 @@
 
 > 仓库：<https://github.com/white-h-6/csforge-mcp>
 >
-> CSForge Streamable HTTP MCP 的通用接入资料：中文 Agent Skill、16 个 `csforge_*` 工具约定、只读候选组合搜索脚本，以及一个可选的本地工具桥适配器（说明见 `docs/local-adapter.md`）。核心内容不绑定任何客户端，任何支持 Streamable HTTP MCP 的 Agent 都可以直接接入。
+> CSForge Streamable HTTP MCP 的通用接入资料：中文 Agent Skill、18 个 `csforge_*` 工具约定、只读候选组合搜索脚本，以及一个可选的本地工具桥适配器（说明见 `docs/local-adapter.md`）。核心内容不绑定任何客户端，任何支持 Streamable HTTP MCP 的 Agent 都可以直接接入。
 
 ## 通用 MCP 接入
 
@@ -26,7 +26,7 @@
 }
 ```
 
-接入后先调用 `csforge_help` / `csforge_whoami`。工具名统一为 `csforge_*`，共 16 个：
+接入后先调用 `csforge_help` / `csforge_whoami`。工具名统一为 `csforge_*`，共 18 个：
 
 - `csforge_help`
 - `csforge_whoami`
@@ -34,6 +34,8 @@
 - `csforge_analyze_recipe`
 - `csforge_inventory`
 - `csforge_prelist_create`
+- `csforge_furnace_create`
+- `csforge_furnace_status`
 - `csforge_prelist_list`
 - `csforge_prelist_simulate`
 - `csforge_prelist_configure`
@@ -60,6 +62,6 @@
 
 ## 可选：本地工具桥适配器
 
-本仓库还包含一个可选的本地工具桥，用于在支持 Cordis 加载器的本地 Harness 中注册同样的 16 个工具并加载内置 Skill。安装、profile 配置、令牌保存和启停方式见 [docs/local-adapter.md](docs/local-adapter.md)。
+本仓库还包含一个可选的本地工具桥，用于在支持 Cordis 加载器的本地 Harness 中注册同样的 18 个工具并加载内置 Skill。安装、profile 配置、令牌保存和启停方式见 [docs/local-adapter.md](docs/local-adapter.md)。
 
 普通 MCP 客户端无需安装这个适配器。

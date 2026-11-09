@@ -6,6 +6,7 @@
 
 ## 业务规则速记（2026-11-09 用户确认）
 
+- **写操作门禁**：任何 `create` / `configure` / `arm` / `cancel` / `save_recipe`（以及 `csforge_request` 的 POST）之前，必须先按 `SKILL.md` §0.2 完成需求确认（N1–N6：目标饰品、磨损档位、数量、材料组成、交付步骤、发布信息）。"创建多个/帮我上架/按上次的来"都不是确认；历史配方只能作建议，不能当默认参数。
 - 打包汰换总售价必须**严格低于**最高产物价值。
 - 押金：合炉 = 最高产物估价 × 1.05；打包汰换 = 最高产物估价 × 1.4；默认余额；由用户支付，Agent 不计算/不承诺/不付款。
 - `guardStatus=102`（ECO 令牌绑定）是合炉与打包汰换的硬性要求。
@@ -31,6 +32,8 @@
 | `csforge_prelist_list` | 只读 | 预上架/自动上架任务列表（精简） |
 | `csforge_prelist_simulate` | 只读 | 按当前市场价刷新预上架产物估值 |
 | `csforge_prelist_create` | 写 | 创建打包预上架草稿（锁定材料，不付款不提交） |
+| `csforge_furnace_create` | 写（敏感） | 创建合炉：10 件材料 + 用户逐件售价 + 押金方式；平台异步创建并扣/收押金 |
+| `csforge_furnace_status` | 只读 | 查询合炉创建/押金进度（operationId 或平台合炉编号） |
 | `csforge_prelist_configure` | 写 | 填写草稿标题/售价/可见性/押金方式 |
 | `csforge_prelist_arm` | 写 | 发起发布/开启自动上架（必须网站人工批准） |
 | `csforge_alipay_qr` | 只读 | 取回支付宝押金二维码 PNG（imagePath/金额/过期时间） |
@@ -123,7 +126,40 @@
 - 单组失败返回 `{ index, error }`；`failed` 为失败组数。
 - 这是验证候选炉磨损/概率/价格的权威站点计算，创建草稿前必须用它复核。
 
+### csforge_furnace_create
+
+参数（字段含义必须原样传达给用户，Agent 不得自行决定 `prices`/`visibility`/`depositMethod`）：
+
+| 字段 | 类型 | 必填 | 用途 |
+|---|---|---|---|
+| `name` | string | 是 | 平台标题，1–10 字符（用户指定，不是材料名） |
+| `assetIds` | string[10] | 是 | 十件合炉材料 assetId，互不相同、属于当前绑定账号 |
+| `prices` | `{assetId, price}[10]` | 是 | **用户逐件给出的材料售价**（元，最多两位小数）；assetId 必须与 `assetIds` 一一对应 |
+| `visibility` | `private \| public` | 是 | 合炉公开或私密（用户选择） |
+| `depositMethod` | `balance \| official` | 是 | 押金方式：`balance`=从用户 EcoSteam 余额扣款；`official`=生成支付宝付款码由用户扫码 |
+| `openFeeRate` | number 0–10 | 否 | 开炉费百分比，默认 0（用户决定） |
+| `freeOpenFee` | boolean | 否 | 是否免开炉费，默认 true（用户决定） |
+| `selfOpen` | boolean | 否 | 是否允许自己开炉，默认 true（用户决定） |
+| `estimatedDepositCents` | int > 0 | 否 | 押金估算（分）。首次可省略，工具按 float-band 估值自动计算并返回；**带 approvalId 重试时必须原样回传** |
+| `idempotencyKey` | UUID | 否 | 幂等键；省略时工具生成并返回，确认重试必须复用 |
+| `approvalId` | UUID | 否 | 网站在“Agent 接入”批准后回填；未批准不要传 |
+
+行为：先按 `priceMode=float-band` 读取产物区间估值并算押金估算，再调 `POST /api/execution/platform/create`（`kind=furnace`，oneStep 押金授权）。该请求按**敏感写操作**分类：敏感确认开启时首次返回 202+approvalId；批准后必须用完全相同的参数（含 `estimatedDepositCents`）+ 原 `idempotencyKey` + approvalId 重试。服务端随后异步创建合炉并处理押金：余额方式按一次性授权扣款，支付宝方式生成付款码。
+**售价下限（2026-11-09 实测）**：平台拒绝明显低于材料参考价的售价——`0.01/件`（合计 ¥0.10）被拒（CreateFurnace 状态码 1），`0.05/件`（合计 ¥0.50、最高产物估值 ¥0.61）成功。`prices` 应取用户按材料参考价/成本给的值，且总价严格低于最高产物估值。
+返回：`{status, idempotencyKey, estimatedDepositCents, depositMethod, operationId, state, externalId, platformStatePending, message}`。
+
+### csforge_furnace_status
+
+| 字段 | 类型 | 必填 | 用途 |
+|---|---|---|---|
+| `operationId` | UUID | 否 | 合炉创建操作 id（create 返回的 operationId）；按本地操作进度查询 |
+| `furnaceId` | string ≤160 | 否 | 平台合炉编号（create 返回的 externalId）；按平台押金预览查询 |
+
+两者都不传时返回最近 10 条合炉操作。只读：不创建、不付款、不提交。
+返回：`operation`（事务状态/押金状态）或 `operations` 列表，以及可选 `deposit`（金额、余额、支付方式、是否可付、是否已关闭）。
+
 ### csforge_prelist_list
+
 参数：`{ "view": "active", "kind": "pack", "phase": "prelist" }`
 - `view`: `active|history`（默认 active）
 - `kind`: `pack|furnace`（默认 pack）
@@ -167,8 +203,9 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 返回：`{ status, id, armed, scheduledAt? }`。
 
 ### csforge_alipay_qr
-参数：`{ "id": "uuid", "kind": "pack", "maxWaitMs": 20000 }`
-- `kind`：`pack|furnace`，默认 pack；合炉传合炉 id。
+参数：`{ "id": "uuid 或合炉编号", "kind": "pack", "maxWaitMs": 20000 }`
+- `id`：`kind=pack` 时是打包任务 UUID；`kind=furnace` 时是平台合炉编号（create 返回的 `externalId`）。
+- `kind`：`pack|furnace`，默认 pack。
 - `maxWaitMs`：0–120000，工具内部轮询等待二维码就绪。
 返回：`{ status, id, kind, qrIncluded, state, amountCents, expiresAt, message }` + MCP image content（PNG）。
 - 本地插件会把图片保存为临时文件并在结果中返回 `imagePath`，可交给 Host 展示给用户。
