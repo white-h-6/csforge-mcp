@@ -37,6 +37,8 @@
 | `csforge_prelist_arm` | 写 | 发起发布/开启自动上架（必须网站人工批准） |
 | `csforge_alipay_qr` | 只读 | 取回支付宝押金二维码 PNG（imagePath/金额/过期时间） |
 | `csforge_prelist_cancel` | 写 | 取消预上架/自动上架任务并释放材料 |
+| `csforge_pack_list` | 只读 | 查看我的打包汰换（默认只列上架中 status=100） |
+| `csforge_pack_price` | 写（敏感） | 修改已上架打包售价；用户给价，需 expectedPrice/幂等键/网站批准 |
 | `csforge_save_recipe` | 写 | 保存 EcoSteam 平台配方（不占库存、不进预上架） |
 | `csforge_open_page` | 只读（导航） | 让在线网页切换页面 |
 | `csforge_request` | 视方法 | 兜底调用 `/api/` 业务接口；账户/管理员/令牌接口禁止 |
@@ -222,6 +224,20 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 - `kind`: `pack|furnace`，默认 pack
 返回：`{ status, id, kind, state }`
 - 取消进行中的预上架/自动上架并释放材料锁；不会创建或提交新上架。
+
+### csforge_pack_list
+参数：`{ "listedOnly": true, "status": 100, "limit": 50 }`
+- `listedOnly` 默认 true：只返回上架中 `status=100`；false 返回全部历史。
+- `status` 可选：100=上架中、101=接单中、0=待支付、999=已完成、-100=已取消。
+返回：`{ status, listedOnly, filterStatus, counts:{listed,total,returned}, items:[{id,title,status,statusText,price,visibility,description,alipay,priceChange}] }`
+- 只读；用于找到要改价/查看的打包编号。
+
+### csforge_pack_price
+参数：`{ "id": "打包编号", "price": 8.8, "expectedPrice": 7.5, "idempotencyKey": "uuid", "approvalId": "uuid" }`
+- `price` 必须由用户明确给出；`expectedPrice` 是改价前当前价，省略时工具先读 price-preview；带 approvalId 重试时必须原样回传。
+- 首次可能返回 `202 approvalRequired + approvalId`；用户批准后，用完全相同 id/price/expectedPrice/idempotencyKey + approvalId 重试。
+- 只能改自己、上架中、无待处理改价/下架操作的打包；不能改他人或已接单/已取消的记录。
+返回：`{ status, id, price, expectedPrice, operationId?, state, message }`。
 
 ### csforge_save_recipe
 参数：

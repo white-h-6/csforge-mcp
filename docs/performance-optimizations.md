@@ -42,7 +42,7 @@
   ```powershell
   cd E:\dsh\csforge-mcp-plugin
   node --check lib/bridge.js
-  node test/register.test.mjs      # 断言注册 25 个工具
+  node test/register.test.mjs      # 断言注册 27 个工具
   node test/plan-packs.test.mjs    # 求解器
   node test/find-extreme-float.test.mjs
   ```

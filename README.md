@@ -2,7 +2,7 @@
 
 > 仓库：<https://github.com/white-h-6/csforge-mcp>
 >
-> CSForge Streamable HTTP MCP 的通用接入资料：中文 Agent Skill、25 个 `csforge_*` 工具约定（含批量/精简工具）、两个只读计算脚本（候选搜索 + 预算式配炉求解器），以及一个可选的本地工具桥适配器（说明见 `docs/local-adapter.md`）。核心内容不绑定任何客户端，任何支持 Streamable HTTP MCP 的 Agent 都可以直接接入。
+> CSForge Streamable HTTP MCP 的通用接入资料：中文 Agent Skill、27 个 `csforge_*` 工具约定（含批量/精简工具）、两个只读计算脚本（候选搜索 + 预算式配炉求解器），以及一个可选的本地工具桥适配器（说明见 `docs/local-adapter.md`）。核心内容不绑定任何客户端，任何支持 Streamable HTTP MCP 的 Agent 都可以直接接入。
 
 ## 通用 MCP 接入
 
@@ -26,33 +26,35 @@
 }
 ```
 
-接入后先调用 `csforge_help` / `csforge_whoami`。工具名统一为 `csforge_*`，共 25 个（18 个业务工具 + 7 个批量/精简工具）：
+接入后先调用 `csforge_help` / `csforge_whoami`。工具名统一为 `csforge_*`，共 27 个（20 个业务工具 + 7 个批量/精简工具）：
 
-- `csforge_help`
-- `csforge_whoami`
-- `csforge_find_skins`
-- `csforge_analyze_recipe`
-- `csforge_inventory`
-- `csforge_prelist_create`
-- `csforge_furnace_create`
-- `csforge_furnace_status`
-- `csforge_prelist_list`
-- `csforge_prelist_simulate`
-- `csforge_prelist_configure`
-- `csforge_prelist_arm`
-- `csforge_alipay_qr`
-- `csforge_prelist_cancel`
-- `csforge_preview_assets`
-- `csforge_save_recipe`
-- `csforge_request`
-- `csforge_open_page`
+- `csforge_help`（读取接口说明、流程与确认规则）
+- `csforge_whoami`（当前 Agent 身份、绑定 steamId、EcoSteam 账号状态）
+- `csforge_find_skins`（按中英文名搜索饰品目录）
+- `csforge_analyze_recipe`（分析目标饰品十件合约配方/概率/磨损/收益）
+- `csforge_inventory`（精简库存，默认只返回 ready 且未锁定的可用资产）
+- `csforge_prelist_create`（用十件材料创建打包预上架草稿）
+- `csforge_furnace_create`（创建合炉并进入押金/上架流程，敏感写）
+- `csforge_furnace_status`（查询合炉创建/押金进度）
+- `csforge_prelist_list`（查看预上架/自动上架任务，支持 phase/view 过滤）
+- `csforge_prelist_simulate`（按当前市场价刷新草稿产物估值）
+- `csforge_prelist_configure`（填写预上架标题/售价/可见性/押金方式）
+- `csforge_prelist_arm`（发起开启自动上架/发布，需网站确认）
+- `csforge_alipay_qr`（只读取回支付宝押金二维码 PNG）
+- `csforge_prelist_cancel`（取消预上架/自动上架并释放材料锁）
+- `csforge_pack_list`（只读查看我的打包汰换；默认只列上架中 status=100）
+- `csforge_pack_price`（修改已上架打包汰换售价，敏感写；需用户给价）
+- `csforge_preview_assets`（一次预览 1–5 组候选十件材料的产物/概率/磨损/价格）
+- `csforge_save_recipe`（保存 EcoSteam 平台十件配方）
+- `csforge_request`（兜底调用其他已开放 `/api/` 业务接口）
+- `csforge_open_page`（让在线 CSForge 网页切换页面，含预上架深链）
 - `csforge_prelist_create_many`（批量建草稿，内部并发 + 瞬时错误退避重试）
 - `csforge_prelist_configure_many`（批量填发布信息）
 - `csforge_prelist_create_configure_many`（一步“建草稿 + 填发布信息”）
 - `csforge_prelist_cancel_many`（批量取消并释放材料锁）
 - `csforge_preview_many`（1–100 组批量预览，自动分片，可只回目标产物）
 - `csforge_prelist_brief`（预上架精简状态，无 10 件材料明细）
-- `csforge_inventory_summary`（全量库存按 skinId 聚合：件数 / 可用性 / float 分布）
+- `csforge_inventory_summary`（全量库存按 skinId 聚合：件数/可用性/float 分布）
 
 > 批量/精简工具由本地桥实现，适合“一次配置几十炉”的场景；批量写仍必须先完成 Agent Skill §0.2 的参数确认，且批量模式不处理网站 202 确认。性能取舍与站点侧建议见 `docs/performance-optimizations.md`。
 
@@ -73,6 +75,6 @@
 
 ## 可选：本地工具桥适配器
 
-本仓库还包含一个可选的本地工具桥，用于在支持 Cordis 加载器的本地 Harness 中注册同样的 25 个工具并加载内置 Skill。安装、profile 配置、令牌保存和启停方式见 [docs/local-adapter.md](docs/local-adapter.md)。
+本仓库还包含一个可选的本地工具桥，用于在支持 Cordis 加载器的本地 Harness 中注册同样的 27 个工具并加载内置 Skill。安装、profile 配置、令牌保存和启停方式见 [docs/local-adapter.md](docs/local-adapter.md)。
 
 普通 MCP 客户端无需安装这个适配器。

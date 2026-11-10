@@ -110,8 +110,9 @@ metadata:
 4. 候选炉验证：`csforge_preview_assets`（一次 1–5 组）/ `csforge_preview_many`（一次 1–100 组，自动按 5 组分片并发；传 `targetSkinId` 只回目标产物行，响应小很多）
 5. 预上架：`csforge_prelist_create` → `csforge_prelist_list`（含材料明细，较大）/ `csforge_prelist_brief`（精简状态，无 10 件材料）→ `csforge_prelist_configure` →（用户人工发布）；**批量（≥3 炉）优先用**：`csforge_prelist_create_configure_many`（一次完成建草稿+填发布信息）、`csforge_prelist_create_many`、`csforge_prelist_configure_many`、`csforge_prelist_cancel_many`
 6. 合炉（Agent 可创建）：`csforge_furnace_create`（10 件材料 + 用户逐件售价 + 押金方式）→ `csforge_furnace_status`（只读轮询）→ 支付宝押金用 `csforge_alipay_qr(kind=furnace)`
-7. 页面导航：`csforge_open_page`（支持 `prelist` 深链）
-8. 兜底：`csforge_request` 只用于上述专用工具未覆盖的业务接口；账户、管理员、令牌管理接口不可用
+7. 我的打包汰换（只读/改价）：`csforge_pack_list`（默认只列上架中 status=100；listedOnly=false 看全部）→ 用户明确要求改价时才用 `csforge_pack_price`（price 必须用户给出，expectedPrice/幂等键/网站批准规则同敏感写）
+8. 页面导航：`csforge_open_page`（支持 `prelist` 深链）
+9. 兜底：`csforge_request` 只用于上述专用工具未覆盖的业务接口；账户、管理员、令牌管理接口不可用
 
 > 批量工具内部已做并发（默认 5，可调 1–8）与“库存状态已变化/分页重复”等瞬时错误的指数退避重试；只读工具（含 `preview_many`、`prelist_brief`、`inventory_summary`）标记为可并发。批量写仍受 §0.2 参数确认门禁约束，且批量模式不处理网站 202 确认，遇到 `approvalRequired` 的条目需人工逐条处理。
 
@@ -122,6 +123,7 @@ metadata:
 - **合炉创建 = 敏感操作**：`csforge_furnace_create` 会发布十件材料并授权押金扣款，按敏感写操作处理（网站敏感确认开启时返回 202+approvalId），重试必须回传首次的 `estimatedDepositCents` 与 `idempotencyKey`。材料售价必须由用户逐件给出，Agent 不得定价；押金由平台按授权从用户 EcoSteam 余额扣除或生成支付宝付款码，Agent 不代付、不确认支付。
 - **发布/arm**：Agent 可以调用 `csforge_prelist_arm` 发起发布/开启自动上架。网站“操作确认”里普通/敏感操作各有一个开关：敏感操作开启时，arm 首次返回 202+approvalId，必须经用户在网站批准后重试才生效；敏感操作关闭时 arm 会直接执行，Agent 必须先得到用户明确要求，并提示“敏感确认已关闭、发布将直接生效”。发布后的 CD、押金、提交仍按平台流程，结果以回执为准。
 - **Agent 不得**：替用户决定售价/押金/公开私密；替用户支付/扣款；开启自动上架后绕过用户审批；替用户确认支付结果。
+- **改价**：`csforge_pack_price` 只修改用户已上架的自有打包，新售价必须由用户明确给出；首次可能返回 202+approvalId，批准后必须用相同 id/price/expectedPrice/idempotencyKey 重试。不要改他人/非上架中/有待处理改价或下架的打包。
 - **押金/付款不用 Agent 管**：合炉押金 = 最高产物估价 × 1.05，打包汰换押金 = 最高产物估价 × 1.4，默认余额；实际金额以平台报价为准，Agent 不计算、不承诺、不付款，用户自己支付。
 - **预上架草稿只支持打包汰换（pack）**；合炉用 `csforge_furnace_create` 直接创建，不要绕道 `plans/:id/create` 或把合炉伪装成预上架草稿。
 - **写操作 202**：返回 `approvalRequired=true` + `approvalId` 时，告诉用户去网站“Agent 接入”批准；重试必须使用**完全相同**的方法/路径/JSON 参数与 `approvalId`，`idempotencyKey` 不变。

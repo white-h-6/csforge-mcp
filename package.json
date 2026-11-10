@@ -1,6 +1,6 @@
 {
   "name": "dsh-csforge-mcp",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Generic CSForge Streamable HTTP MCP integration and Agent skill, plus an optional local tool-bridge adapter",
   "type": "module",
