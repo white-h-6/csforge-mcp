@@ -2,8 +2,8 @@
 name: csforge
 description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、需求确认门禁、预上架/合炉流程、材料与磨损规则、安全红线和错误重试规范；本部署相关的昵称映射、示例价格与实测快照见 references/deployment-notes.md（使用前复核，可能过期）。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.4.0"
-  date: "2026-11-09"
+  version: "0.4.1"
+  date: "2026-11-12"
 ---
 
 # CSForge Agent Skill
@@ -40,6 +40,8 @@ metadata:
 未连接/无绑定：直接结束流程并说明需要用户完成什么，不要猜测账号或材料。
 
 ### 0.2 需求确认（所有写操作的硬门禁）
+
+指定某个已上架打包“按原配置重新上架”时，先用 `csforge_pack_relist_preview` 核对该单的现有配置，按 [原配置重新上架流程](references/tools.md#csforge_pack_relist) 执行；用户已明确授权保留这些设置时，复用现有材料、磨损和售价，不重新设计配方。重新上架仍走敏感写确认。
 
 > **本节优先级高于“用户已经说了创建”的直觉，也高于任何历史习惯。** 凡下一次调用属于写操作（`csforge_prelist_create` / `configure` / `arm` / `cancel`、`csforge_furnace_create`、`csforge_save_recipe`，或 `csforge_request` 的任何 POST），必须先把下面的清单逐项确认完，才允许调用。
 

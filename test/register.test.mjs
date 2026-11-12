@@ -57,6 +57,8 @@ assert.deepEqual(
     'csforge_alipay_qr',
     'csforge_prelist_cancel',
     'csforge_pack_list',
+    'csforge_pack_relist_preview',
+    'csforge_pack_relist',
     'csforge_pack_price',
     'csforge_preview_assets',
     'csforge_save_recipe',
@@ -80,6 +82,10 @@ assert.ok(byName.csforge_preview_many.parameters.properties.targetSkinId)
 assert.ok(byName.csforge_inventory_summary.parameters.properties.includeIds)
 assert.ok(byName.csforge_pack_list.parameters.properties.listedOnly)
 assert.ok(byName.csforge_pack_price.parameters.properties.expectedPrice)
+assert.ok(byName.csforge_pack_relist.parameters.properties.configurationHash)
+assert.ok(byName.csforge_pack_relist.parameters.properties.approvalId)
+assert.equal(byName.csforge_pack_relist_preview.isConcurrencySafe({ id: 'pack' }), true)
+assert.equal(byName.csforge_pack_relist.isConcurrencySafe({ id: 'pack' }), false)
 assert.equal(typeof byName.csforge_preview_assets.isConcurrencySafe, 'function')
 assert.equal(byName.csforge_prelist_brief.isConcurrencySafe({}), true)
 assert.equal(byName.csforge_inventory_summary.isConcurrencySafe({}), true)

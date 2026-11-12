@@ -2,7 +2,7 @@
 
 > 仓库：<https://github.com/white-h-6/csforge-mcp>
 >
-> CSForge Streamable HTTP MCP 的通用接入资料：中文 Agent Skill、27 个 `csforge_*` 工具约定（含批量/精简工具）、两个只读计算脚本（候选搜索 + 预算式配炉求解器），以及一个可选的本地工具桥适配器（说明见 `docs/local-adapter.md`）。核心内容不绑定任何客户端，任何支持 Streamable HTTP MCP 的 Agent 都可以直接接入。
+> CSForge Streamable HTTP MCP 的通用接入资料：中文 Agent Skill、29 个 `csforge_*` 工具约定（含批量/精简工具）、两个只读计算脚本（候选搜索 + 预算式配炉求解器），以及一个可选的本地工具桥适配器（说明见 `docs/local-adapter.md`）。核心内容不绑定任何客户端，任何支持 Streamable HTTP MCP 的 Agent 都可以直接接入。
 
 ## 通用 MCP 接入
 
@@ -26,7 +26,7 @@
 }
 ```
 
-接入后先调用 `csforge_help` / `csforge_whoami`。工具名统一为 `csforge_*`，共 27 个（20 个业务工具 + 7 个批量/精简工具）：
+接入后先调用 `csforge_help` / `csforge_whoami`。工具名统一为 `csforge_*`，共 29 个（22 个业务工具 + 7 个批量/精简工具）：
 
 - `csforge_help`（读取接口说明、流程与确认规则）
 - `csforge_whoami`（当前 Agent 身份、绑定 steamId、EcoSteam 账号状态）
@@ -44,6 +44,8 @@
 - `csforge_prelist_cancel`（取消预上架/自动上架并释放材料锁）
 - `csforge_pack_list`（只读查看我的打包汰换；默认只列上架中 status=100）
 - `csforge_pack_price`（修改已上架打包汰换售价，敏感写；需用户给价）
+- `csforge_pack_relist_preview`（只读核对原配置和重新上架进度）
+- `csforge_pack_relist`（按原十件材料、原标题、当前售价、公开设置和付款方式重新上架；敏感写，需网站确认）
 - `csforge_preview_assets`（一次预览 1–5 组候选十件材料的产物/概率/磨损/价格）
 - `csforge_save_recipe`（保存 EcoSteam 平台十件配方）
 - `csforge_request`（兜底调用其他已开放 `/api/` 业务接口）
@@ -75,6 +77,6 @@
 
 ## 可选：本地工具桥适配器
 
-本仓库还包含一个可选的本地工具桥，用于在支持 Cordis 加载器的本地 Harness 中注册同样的 27 个工具并加载内置 Skill。安装、profile 配置、令牌保存和启停方式见 [docs/local-adapter.md](docs/local-adapter.md)。
+本仓库还包含一个可选的本地工具桥，用于在支持 Cordis 加载器的本地 Harness 中注册同样的 29 个工具并加载内置 Skill。安装、profile 配置、令牌保存和启停方式见 [docs/local-adapter.md](docs/local-adapter.md)。
 
 普通 MCP 客户端无需安装这个适配器。

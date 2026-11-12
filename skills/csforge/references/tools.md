@@ -39,11 +39,24 @@
 | `csforge_prelist_cancel` | 写 | 取消预上架/自动上架任务并释放材料 |
 | `csforge_pack_list` | 只读 | 查看我的打包汰换（默认只列上架中 status=100） |
 | `csforge_pack_price` | 写（敏感） | 修改已上架打包售价；用户给价，需 expectedPrice/幂等键/网站批准 |
+| `csforge_pack_relist_preview` | 只读 | 核对原配置与重新上架进度 |
+| `csforge_pack_relist` | 写（敏感） | 保留原配置，确认下架后重新发布 |
 | `csforge_save_recipe` | 写 | 保存 EcoSteam 平台配方（不占库存、不进预上架） |
 | `csforge_open_page` | 只读（导航） | 让在线网页切换页面 |
 | `csforge_request` | 视方法 | 兜底调用 `/api/` 业务接口；账户/管理员/令牌接口禁止 |
 
 ## 常用参数与返回
+
+### csforge_pack_relist
+
+用户指定某单按原配置重新上架时：
+
+1. 用 `csforge_pack_relist_preview({id})` 读取原十件材料、原标题、当前售价、公开/私密、付款方式及已有请求进度。完成条件：原配置完整、属于当前账号；已有未知结果先核对进度。
+2. 用 `csforge_pack_relist({id})` 发起一次重新上架。服务端复核原配置摘要，先保存原配置，再确认下架，最后复用现有发布流程。配置变化或原配置缺失时，原上架保持不变。
+3. 返回 `202+approvalId` 时，把首次返回的 `idempotencyKey`、`configurationHash` 与原 `id` 一起保留。用户在网站批准后，原样回传这些参数及 `approvalId`。完成条件：回执已说明下架和新上架各自状态。
+4. `stage=cancelling` 或 `state=unknown` 时用 preview 核对；原请求键用于继续核对，不能换键重复提交。`stage=published` 含新打包编号。支付宝按原方式重新生成付款码，由用户本人付款；`publishOperationId` 可用于 `csforge_alipay_qr` 取码。尚未付款或平台结果待核对时，如实报告当前状态。
+
+此操作保留原材料、磨损、标题、当前售价、公开设置和付款方式，不进行新的配炉或替换材料。用户已明确授权按原配置重新上架时，按这些已核对的既有值执行；网站敏感写确认仍适用。
 
 ### csforge_whoami
 参数：`{}`
