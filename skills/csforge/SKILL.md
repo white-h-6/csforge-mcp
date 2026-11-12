@@ -2,7 +2,7 @@
 name: csforge
 description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、需求确认门禁、预上架/合炉流程、材料与磨损规则、安全红线和错误重试规范；本部署相关的昵称映射、示例价格与实测快照见 references/deployment-notes.md（使用前复核，可能过期）。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.4.1"
+  version: "0.4.2"
   date: "2026-11-12"
 ---
 
@@ -59,8 +59,8 @@ metadata:
 | N2 | 目标磨损档位 + 是否卡极限 | FN/MW/FT/WW/BS；卡极限时给出边界（如严格 <0.07）；同时确认**产物 float 目标**（只要 <边界，还是贴边到 0.0699 这种精度） | 自行假定 FN 或“越极限越好” |
 | N3 | 数量 | 具体数字（1、2、3…） | 把“多个”自行解释成上限或下限（如“最多能做 N 份就建 N 份”） |
 | N4 | 材料组成 | 主材料件数 + 其余材料来源（例：“1 件 A 收藏材料 + 9 件 B 收藏材料”，或明确“由 Agent 从可用库存选”）；同时确认**辅料范围**（是否只限一种辅料、是否允许任意同稀有度消费级饰品） | 把历史配方当默认 |
-| N5 | 交付步骤 | ①只读方案 ②只建草稿 ③草稿+填发布信息 ④ Agent 发起 arm（需网站人工批准）⑤ 创建合炉（需逐件给价） | 先建草稿/先建炉再补问 |
-| N6 | 发布信息（N5≥③ 或 N5=⑤ 时必填） | 打包：标题（≤10 字符）、总售价、公开/私密、押金方式；合炉：标题、公开/私密、押金方式（余额/支付宝）、开炉费设置，以及**用户逐件给出的材料售价** | 替用户定价、定可见性、选押金 |
+| N5 | 交付步骤 | ①只读方案 ②只建草稿 ③草稿+填发布信息 ④ Agent 发起 arm（需网站人工批准）⑤ 创建合炉（需指定售价或定价规则） | 先建草稿/先建炉再补问 |
+| N6 | 发布信息（N5≥③ 或 N5=⑤ 时必填） | 打包：标题（≤10 字符）、总售价、公开/私密、押金方式；合炉：标题、公开/私密、押金方式（余额/支付宝）、开炉费设置，以及**用户指定的材料售价或定价规则** | 替用户定价、定可见性、选押金 |
 
 #### 0.2.3 一次问清（推荐做法）
 
@@ -85,7 +85,7 @@ metadata:
 #### 0.2.5 分场景补充
 
 - **打包汰换**：N6 的总售价必须严格低于最高产物价值；押金由用户在网站支付，Agent 不计算、不承诺、不付款。
-- **合炉（N5=⑤）**：Agent 可创建合炉，但 `prices` 必须由用户逐件给出；确认失败时只输出 10 件材料表请用户补价，Agent 不替用户定价。
+- **合炉（N5=⑤）**：Agent 可创建合炉，但 `prices` 接受用户指定售价或定价规则或指定的 `{basis:"cost"\|"floor",multiplier:1.2}`（默认 1 倍）。Agent 不得擅自选择基准或倍率；缺价时请用户补价。
 - **发布/arm**：必须单独确认用户接受“Agent 发起 arm，但必须在网站 Agent 接入页面人工批准，且 Agent 不代付押金”；若敏感确认开关关闭，提示“发布将直接生效”。
 
 #### 0.2.6 反模式（本 Skill 明确禁止）
@@ -111,7 +111,7 @@ metadata:
 3. 库存：`csforge_inventory`（逐件细查）/ `csforge_inventory_summary`（**一次聚合全量库存**：每种皮肤件数、ready/available/locked/prelisted 计数、float 最小/最大/平均；可选 `skinIds`/`includeIds`）
 4. 候选炉验证：`csforge_preview_assets`（一次 1–5 组）/ `csforge_preview_many`（一次 1–100 组，自动按 5 组分片并发；传 `targetSkinId` 只回目标产物行，响应小很多）
 5. 预上架：`csforge_prelist_create` → `csforge_prelist_list`（含材料明细，较大）/ `csforge_prelist_brief`（精简状态，无 10 件材料）→ `csforge_prelist_configure` →（用户人工发布）；**批量（≥3 炉）优先用**：`csforge_prelist_create_configure_many`（一次完成建草稿+填发布信息）、`csforge_prelist_create_many`、`csforge_prelist_configure_many`、`csforge_prelist_cancel_many`
-6. 合炉（Agent 可创建）：`csforge_furnace_create`（10 件材料 + 用户逐件售价 + 押金方式）→ `csforge_furnace_status`（只读轮询）→ 支付宝押金用 `csforge_alipay_qr(kind=furnace)`
+6. 合炉（Agent 可创建）：`csforge_furnace_create`（10 件材料 + 用户指定售价或定价规则 + 押金方式）→ `csforge_furnace_status`（只读轮询）→ 支付宝押金用 `csforge_alipay_qr(kind=furnace)`
 7. 我的打包汰换（只读/改价）：`csforge_pack_list`（默认只列上架中 status=100；listedOnly=false 看全部）→ 用户明确要求改价时才用 `csforge_pack_price`（price 必须用户给出，expectedPrice/幂等键/网站批准规则同敏感写）
 8. 页面导航：`csforge_open_page`（支持 `prelist` 深链）
 9. 兜底：`csforge_request` 只用于上述专用工具未覆盖的业务接口；账户、管理员、令牌管理接口不可用
@@ -122,7 +122,7 @@ metadata:
 
 - **只读优先**：查询、预览、模拟先做；写操作必须来自用户明确指令。
 - **写操作前置 = §0.2 需求确认**：`csforge_prelist_create` / `configure` / `arm` / `cancel` / `csforge_furnace_create` / `csforge_save_recipe` 以及任何 `csforge_request` POST 之前，必须先完成 §0.2 的 N1–N6 确认；**“用户已要求创建”不等于“参数已确认”**，不得自行补默认值。
-- **合炉创建 = 敏感操作**：`csforge_furnace_create` 会发布十件材料并授权押金扣款，按敏感写操作处理（网站敏感确认开启时返回 202+approvalId），重试必须回传首次的 `estimatedDepositCents` 与 `idempotencyKey`。材料售价必须由用户逐件给出，Agent 不得定价；押金由平台按授权从用户 EcoSteam 余额扣除或生成支付宝付款码，Agent 不代付、不确认支付。
+- **合炉创建 = 敏感操作**：`csforge_furnace_create` 会发布十件材料并授权押金扣款，按敏感写操作处理（网站敏感确认开启时返回 202+approvalId），重试必须回传首次的 `estimatedDepositCents` 与 `idempotencyKey`。材料售价由用户逐件给出或指定基准与倍率，Agent 不得擅自选价；确认重试使用首次返回的固定 `prices` 数组；押金由平台按授权从用户 EcoSteam 余额扣除或生成支付宝付款码，Agent 不代付、不确认支付。
 - **发布/arm**：Agent 可以调用 `csforge_prelist_arm` 发起发布/开启自动上架。网站“操作确认”里普通/敏感操作各有一个开关：敏感操作开启时，arm 首次返回 202+approvalId，必须经用户在网站批准后重试才生效；敏感操作关闭时 arm 会直接执行，Agent 必须先得到用户明确要求，并提示“敏感确认已关闭、发布将直接生效”。发布后的 CD、押金、提交仍按平台流程，结果以回执为准。
 - **Agent 不得**：替用户决定售价/押金/公开私密；替用户支付/扣款；开启自动上架后绕过用户审批；替用户确认支付结果。
 - **改价**：`csforge_pack_price` 只修改用户已上架的自有打包，新售价必须由用户明确给出；首次可能返回 202+approvalId，批准后必须用相同 id/price/expectedPrice/idempotencyKey 重试。不要改他人/非上架中/有待处理改价或下架的打包。
@@ -137,7 +137,7 @@ metadata:
 
 | 术语 | 含义 | Agent 可做 |
 |---|---|---|
-| 合炉（furnace） | 用户自己投入 10 件材料开炉，产出 1 件更高稀有度饰品 | 分析/选材/预览；可创建（需用户逐件售价）；押金由用户支付，开炉由平台流程执行 |
+| 合炉（furnace） | 用户自己投入 10 件材料开炉，产出 1 件更高稀有度饰品 | 分析/选材/预览；可创建（需用户指定售价或定价规则）；押金由用户支付，开炉由平台流程执行 |
 | 打包汰换（pack） | 把 10 件材料作为“炉”上架出售（买家购买后自行汰换） | 可创建预上架草稿、填发布信息（用户给值）、模拟、取消；发布/开启自动上架必须人工 |
 | 预上架（prelist） | 打包汰换的草稿态：材料锁定、`prelist=true, armed=false, configured=false`，不付款不提交 | 创建/查看/模拟/填发布信息/取消 |
 | 可上架资产 | `ready && !locked && !prelisted`（`ready` 已包含 Status=1、Tradable、CanPublish） | `csforge_inventory` 的 `available` 直接使用 |
@@ -154,7 +154,7 @@ metadata:
 - **账号门槛**：`guardStatus=102`（ECO 令牌已绑定）是**打包发布/arm**的硬性要求；打包草稿创建与合炉创建不单独拦截 102，但要求 EcoSteam 交易链接实时验证通过，付款/上架结果以平台回执为准。不满足时先告知用户去 EcoSteam 官方渠道处理，不要绕过。
 - **纪念品**：Souvenir 纪念品可以作为汰换材料。
 - **冷却材料**：冷却中的材料可以先进预上架草稿；发布后到期会自动上架并自动从余额扣押金。
-- **合炉入口**：Agent 可用 `csforge_furnace_create` 创建合炉（十件材料 + 用户逐件售价 + 押金方式），但**不提供** automatic/CD 定时合炉；开炉、付款与平台提交按原有平台流程执行，结果以回执为准。
+- **合炉入口**：Agent 可用 `csforge_furnace_create` 创建合炉（十件材料 + 用户指定售价或定价规则 + 押金方式），但**不提供** automatic/CD 定时合炉；开炉、付款与平台提交按原有平台流程执行，结果以回执为准。
 
 ## 4. 工作流 A：库存与选材（只读）
 
@@ -196,7 +196,7 @@ metadata:
 
 前置：§0.2 已确认 N1–N6，尤其是材料组成与 **N6 的每件材料售价（用户给）**、公开/私密、押金方式（余额/支付宝）、开炉费设置。
 
-1. **报价（只读）**：先用 `csforge_preview_assets` 或站点预览给出十件材料的产物/概率/磨损；把 10 件材料表（序号/名称/float/参考价）交给用户，**让用户自己填写每件出售价格**，Agent 不替用户定价、不承诺押金金额。
+1. **报价（只读）**：先用 `csforge_preview_assets` 或站点预览给出十件材料的产物/概率/磨损；把 10 件材料表（序号/名称/float/参考价）交给用户，**由用户逐件填写售价或选择按成本/磨损底价及倍率**，Agent 不擅自选价、不承诺押金金额。
 2. **创建**：`csforge_furnace_create({ name, assetIds, prices, visibility, depositMethod, openFeeRate?, freeOpenFee?, selfOpen? })`。
    字段用途（每一项都要向用户解释，不许自行填值）：
 
@@ -204,7 +204,7 @@ metadata:
    |---|---|
    | `name` | 平台标题，1–10 字符（用户指定，不是材料名） |
    | `assetIds` | 十件合炉材料 assetId，互不相同、属于当前绑定账号 |
-   | `prices` | **用户逐件给出的材料售价**（元，最多两位小数），assetId 与 assetIds 一一对应 |
+   | `prices` | 用户逐件填写的售价数组，或用户指定的定价规则（基准和倍率）；详见 [工具参考](references/tools.md#csforge_furnace_create) |
    | `visibility` | `private` 私密 / `public` 公开（用户选择） |
    | `depositMethod` | `balance`=从用户 EcoSteam 余额扣款；`official`=生成支付宝付款码由用户扫码 |
    | `openFeeRate` | 开炉费百分比 0–10，默认 0（用户决定） |
@@ -215,8 +215,8 @@ metadata:
    | `approvalId` | 网站“Agent 接入”批准后回填；未批准不要传 |
 
    工具会先按 `priceMode=float-band` 读取产物区间估值并计算押金估算 `estimatedDepositCents`，再提交创建（服务端 oneStep 押金授权）。
-   - 该写操作按**敏感操作**处理：若网站敏感确认开启，首次返回 202+approvalId → 让用户在网站“Agent 接入”批准 → **用完全相同参数（含 `estimatedDepositCents`）与 `idempotencyKey` 重试**。
-   - **售价下限**：平台会拒绝明显低于材料参考价的售价（实测记录见 `references/deployment-notes.md`，可能变化）。让用户按材料参考价/买入成本填写每件售价，且总价严格低于最高产物估值；被拒时不要原样重试，先提高售价或换材料。
+   - 该写操作按**敏感操作**处理：若网站敏感确认开启，首次返回 202+approvalId → 让用户在网站“Agent 接入”批准 → **使用首次返回的固定 `prices` 数组、原 `estimatedDepositCents`、其余参数与 `idempotencyKey` 重试，不能再次按规则取价**。
+   - **售价下限**：平台会拒绝明显低于材料参考价的售价（实测记录见 `references/deployment-notes.md`，可能变化）。让用户逐件填写售价或选择定价基准与倍率，且总价严格低于最高产物估值；被拒时不要原样重试，先提高售价或换材料。
    - 若返回押金估值不可用（float-band 不完整）、材料不可用或平台明确拒绝，如实转告，不要换参数硬试。
 3. **进度**：`csforge_furnace_status({ operationId })` 只读轮询（`state`/`externalId`/`depositState`/`depositMessage`）；拿到平台合炉编号后也可用 `csforge_furnace_status({ furnaceId })` 核对押金。
 4. **押金**：

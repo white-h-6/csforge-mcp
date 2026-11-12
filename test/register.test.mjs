@@ -107,6 +107,22 @@ assert.ok(byName.csforge_analyze_recipe.parameters.properties.timeoutMs)
 assert.ok(byName.csforge_open_page.parameters.properties.page.enum.includes('prelist'))
 assert.ok(byName.csforge_prelist_create.parameters.properties.assetIds)
 assert.ok(byName.csforge_furnace_create.parameters.properties.prices)
+assert.equal(byName.csforge_furnace_create.parameters.properties.prices.oneOf.length, 2)
+assert.equal('multiplier' in byName.csforge_furnace_create.parameters.properties, false)
+const furnaceArgs = {
+  name: '倍率测试', assetIds: Array.from({ length: 10 }, (_, i) => `asset-${i}`),
+  visibility: 'private', depositMethod: 'official',
+}
+for (const multiplier of [0, -1]) {
+  await assert.rejects(byName.csforge_furnace_create.execute({
+    ...furnaceArgs, prices: { basis: 'cost', multiplier },
+  }), /positive multiplier/)
+}
+await assert.rejects(byName.csforge_furnace_create.execute({
+  ...furnaceArgs, prices: { basis: 'floor', multiplier: 1.2 },
+  approvalId: '123e4567-e89b-42d3-a456-426614174000',
+  idempotencyKey: '123e4567-e89b-42d3-a456-426614174001', estimatedDepositCents: 100,
+}), /returned fixed prices array/)
 assert.ok(byName.csforge_furnace_create.parameters.properties.estimatedDepositCents)
 assert.ok(byName.csforge_furnace_status.parameters.properties.operationId)
 assert.ok(byName.csforge_prelist_configure.parameters.properties.paymentMethod)

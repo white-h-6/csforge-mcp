@@ -34,7 +34,7 @@
 - `csforge_analyze_recipe`（分析目标饰品十件合约配方/概率/磨损/收益）
 - `csforge_inventory`（精简库存，默认只返回 ready 且未锁定的可用资产）
 - `csforge_prelist_create`（用十件材料创建打包预上架草稿）
-- `csforge_furnace_create`（创建合炉并进入押金/上架流程，敏感写）
+- `csforge_furnace_create`（创建合炉，`prices` 支持逐件售价或 `{basis:"cost"|"floor",multiplier:1.2}`；敏感确认重试使用返回的固定售价数组）
 - `csforge_furnace_status`（查询合炉创建/押金进度）
 - `csforge_prelist_list`（查看预上架/自动上架任务，支持 phase/view 过滤）
 - `csforge_prelist_simulate`（按当前市场价刷新草稿产物估值）

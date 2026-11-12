@@ -31,7 +31,7 @@
 | `csforge_prelist_list` | 只读 | 预上架/自动上架任务列表（精简） |
 | `csforge_prelist_simulate` | 只读 | 按当前市场价刷新预上架产物估值 |
 | `csforge_prelist_create` | 写 | 创建打包预上架草稿（锁定材料，不付款不提交） |
-| `csforge_furnace_create` | 写（敏感） | 创建合炉：10 件材料 + 用户逐件售价 + 押金方式；平台异步创建并扣/收押金 |
+| `csforge_furnace_create` | 写（敏感） | 创建合炉：10 件材料 + 用户售价/定价规则 + 押金方式；平台异步创建并扣/收押金 |
 | `csforge_furnace_status` | 只读 | 查询合炉创建/押金进度（operationId 或平台合炉编号） |
 | `csforge_prelist_configure` | 写 | 填写草稿标题/售价/可见性/押金方式 |
 | `csforge_prelist_arm` | 写 | 发起发布/开启自动上架（必须网站人工批准） |
@@ -148,7 +148,7 @@
 |---|---|---|---|
 | `name` | string | 是 | 平台标题，1–10 字符（用户指定，不是材料名） |
 | `assetIds` | string[10] | 是 | 十件合炉材料 assetId，互不相同、属于当前绑定账号 |
-| `prices` | `{assetId, price}[10]` | 是 | **用户逐件给出的材料售价**（元，最多两位小数）；assetId 必须与 `assetIds` 一一对应 |
+| `prices` | 数组或规则对象 | 是 | 设置售价：用户逐件 `{assetId,price}[10]`，或指定 `{basis:"cost"\|"floor",multiplier:1.2}`；cost=本人该账号已核实成本，floor=磨损区间底价，倍率默认 1。从基准计算，逐件四舍五入到分；缺价或结果越界时停止创建 |
 | `visibility` | `private \| public` | 是 | 合炉公开或私密（用户选择） |
 | `depositMethod` | `balance \| official` | 是 | 押金方式：`balance`=从用户 EcoSteam 余额扣款；`official`=生成支付宝付款码由用户扫码 |
 | `openFeeRate` | number 0–10 | 否 | 开炉费百分比，默认 0（用户决定） |
@@ -158,9 +158,9 @@
 | `idempotencyKey` | UUID | 否 | 幂等键；省略时工具生成并返回，确认重试必须复用 |
 | `approvalId` | UUID | 否 | 网站在“Agent 接入”批准后回填；未批准不要传 |
 
-行为：先按 `priceMode=float-band` 读取产物区间估值并算押金估算，再调 `POST /api/execution/platform/create`（`kind=furnace`，oneStep 押金授权）。该请求按**敏感写操作**分类：敏感确认开启时首次返回 202+approvalId；批准后必须用完全相同的参数（含 `estimatedDepositCents`）+ 原 `idempotencyKey` + approvalId 重试。服务端随后异步创建合炉并处理押金：余额方式按一次性授权扣款，支付宝方式生成付款码。
+行为：先按 `priceMode=float-band` 读取产物区间估值并算押金估算，再调 `POST /api/execution/platform/create`（`kind=furnace`，oneStep 押金授权）。该请求按**敏感写操作**分类：敏感确认开启时首次返回 202+approvalId；工具返回已算好的 `prices` 数组供网站确认。批准后必须改用该数组，原样回传 `estimatedDepositCents`、其余参数、`idempotencyKey` 与 approvalId；不能再次按规则取价。服务端随后异步创建合炉并处理押金：余额方式按一次性授权扣款，支付宝方式生成付款码。
 **售价下限（2026-11-09 实测）**：平台拒绝明显低于材料参考价的售价——`0.01/件`（合计 ¥0.10）被拒（CreateFurnace 状态码 1），`0.05/件`（合计 ¥0.50、最高产物估值 ¥0.61）成功。`prices` 应取用户按材料参考价/成本给的值，且总价严格低于最高产物估值。
-返回：`{status, idempotencyKey, estimatedDepositCents, depositMethod, operationId, state, externalId, platformStatePending, message}`。
+返回：`{status, idempotencyKey, prices, estimatedDepositCents, depositMethod, operationId, state, externalId, platformStatePending, message}`；`prices` 为已计算并固定的逐件售价数组。
 
 ### csforge_furnace_status
 
