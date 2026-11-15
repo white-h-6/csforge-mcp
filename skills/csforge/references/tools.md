@@ -101,7 +101,7 @@
 参数：
 ```json
 {
-  "steamId": "7656...",       // 可省略，默认当前绑定
+  "steamId": "7656...",       // 可省略，默认网页当前选择，再回退连接默认账号
   "query": "冻雨",             // 名称包含过滤，≤100
   "skinId": "skin-...",       // 精确过滤
   "availableOnly": true,       // 默认 true
@@ -147,7 +147,8 @@
 | 字段 | 类型 | 必填 | 用途 |
 |---|---|---|---|
 | `name` | string | 是 | 平台标题，1–10 字符（用户指定，不是材料名） |
-| `assetIds` | string[10] | 是 | 十件合炉材料 assetId，互不相同、属于当前绑定账号 |
+| `steamId` | string | 否 | 本人账号的 17 位 SteamID；省略时使用网页当前选择，再回退连接默认账号 |
+| `assetIds` | string[10] | 是 | 十件合炉材料 assetId，互不相同、属于本次选定账号 |
 | `prices` | 数组或规则对象 | 是 | 设置售价：用户逐件 `{assetId,price}[10]`，或指定 `{basis:"cost"\|"floor",multiplier:1.2}`；cost=本人该账号已核实成本，floor=磨损区间底价，倍率默认 1。从基准计算，逐件四舍五入到分；缺价或结果越界时停止创建 |
 | `visibility` | `private \| public` | 是 | 合炉公开或私密（用户选择） |
 | `depositMethod` | `balance \| official` | 是 | 押金方式：`balance`=从用户 EcoSteam 余额扣款；`official`=生成支付宝付款码由用户扫码 |
@@ -158,9 +159,9 @@
 | `idempotencyKey` | UUID | 否 | 幂等键；省略时工具生成并返回，确认重试必须复用 |
 | `approvalId` | UUID | 否 | 网站在“Agent 接入”批准后回填；未批准不要传 |
 
-行为：先按 `priceMode=float-band` 读取产物区间估值并算押金估算，再调 `POST /api/execution/platform/create`（`kind=furnace`，oneStep 押金授权）。该请求按**敏感写操作**分类：敏感确认开启时首次返回 202+approvalId；工具返回已算好的 `prices` 数组供网站确认。批准后必须改用该数组，原样回传 `estimatedDepositCents`、其余参数、`idempotencyKey` 与 approvalId；不能再次按规则取价。服务端随后异步创建合炉并处理押金：余额方式按一次性授权扣款，支付宝方式生成付款码。
+行为：先按 `priceMode=float-band` 读取产物区间估值并算押金估算，再调 `POST /api/execution/platform/create`（`kind=furnace`，oneStep 押金授权）。该请求按**敏感写操作**分类：敏感确认开启时首次返回 202+approvalId；工具返回已算好的 `prices` 数组供网站确认。批准后必须改用该数组，原样回传 `steamId`、`estimatedDepositCents`、其余参数、`idempotencyKey` 与 approvalId；不能再次按规则取价。服务端随后异步创建合炉并处理押金：余额方式按一次性授权扣款，支付宝方式生成付款码。
 **售价下限（2026-11-09 实测）**：平台拒绝明显低于材料参考价的售价——`0.01/件`（合计 ¥0.10）被拒（CreateFurnace 状态码 1），`0.05/件`（合计 ¥0.50、最高产物估值 ¥0.61）成功。`prices` 应取用户按材料参考价/成本给的值，且总价严格低于最高产物估值。
-返回：`{status, idempotencyKey, prices, estimatedDepositCents, depositMethod, operationId, state, externalId, platformStatePending, message}`；`prices` 为已计算并固定的逐件售价数组。
+返回：`{status, steamId, idempotencyKey, prices, estimatedDepositCents, depositMethod, operationId, state, externalId, platformStatePending, message}`；`prices` 为已计算并固定的逐件售价数组。
 
 ### csforge_furnace_status
 
@@ -187,6 +188,7 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 ```json
 {
   "name": "红色轮胎",           // 平台标题，≤10 个字符
+  "steamId": "7656...",         // 可选：本人账号；省略时跟随网页选择，再回退连接默认账号
   "assetIds": ["10 个不同 assetId"],
   "idempotencyKey": "uuid",     // 可省略；结果会返回，重试必须复用
   "visibility": "private",      // 可选 private|public
@@ -194,7 +196,7 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 }
 ```
 行为：服务端强制 `kind=pack`、`prelist=true`、`armed=false`、`configured=false`；材料立即锁定并从库存隐藏；**不付款、不提交、默认不开启自动上架**。发布需 `csforge_prelist_arm` 并经用户在网站批准。
-返回：`{ status, idempotencyKey, operationId, state, externalId?, message }`（202 时含 approvalRequired/approvalId 与提示）。
+返回：`{ status, steamId, idempotencyKey, operationId, state, externalId?, message }`（202 时含 approvalRequired/approvalId 与提示）。确认重试保留返回的 `steamId` 和原幂等键。
 
 ### csforge_prelist_configure
 参数：
@@ -315,5 +317,5 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 - 返回 counts + 每个任务的 id/名称/状态/armed/configured/价格/可见性/材料件数，不含 10 件材料明细。
 
 ### csforge_inventory_summary
-参数：`{ "skinIds":["skin-..."], "includeIds":false, "limit":200 }`
+参数：`{ "steamId":"17 位（可选）", "skinIds":["skin-..."], "includeIds":false, "limit":200 }`
 - 一次读取完整库存快照并按 skinId 聚合：件数、ready/available/locked/prelisted 计数、float min/max/avg；`includeIds=true` 时附带 assetId 列表。

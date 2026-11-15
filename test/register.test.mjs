@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { existsSync, unlinkSync } from 'node:fs'
-import { apply, Config, projectMcpResult } from '../lib/bridge.js'
+import { apply, Config, projectMcpResult, normalizeInventory, normalizePrelistCreate, normalizeFurnaceCreate } from '../lib/bridge.js'
 
 const tools = []
 const skills = []
@@ -80,6 +80,13 @@ assert.ok(byName.csforge_prelist_create_configure_many.parameters.properties.con
 assert.ok(byName.csforge_prelist_cancel_many.parameters.properties.ids)
 assert.ok(byName.csforge_preview_many.parameters.properties.targetSkinId)
 assert.ok(byName.csforge_inventory_summary.parameters.properties.includeIds)
+for (const name of ['csforge_inventory', 'csforge_inventory_summary', 'csforge_prelist_create', 'csforge_furnace_create']) {
+  assert.equal(byName[name].parameters.properties.steamId.type, 'string')
+  assert.ok(!byName[name].parameters.required?.includes('steamId'))
+}
+for (const name of ['csforge_prelist_create_many', 'csforge_prelist_create_configure_many']) {
+  assert.equal(byName[name].parameters.properties.items.items.properties.steamId.type, 'string')
+}
 assert.ok(byName.csforge_pack_list.parameters.properties.listedOnly)
 assert.ok(byName.csforge_pack_price.parameters.properties.expectedPrice)
 assert.ok(byName.csforge_pack_relist.parameters.properties.configurationHash)
@@ -113,6 +120,29 @@ const furnaceArgs = {
   name: '倍率测试', assetIds: Array.from({ length: 10 }, (_, i) => `asset-${i}`),
   visibility: 'private', depositMethod: 'official',
 }
+// An explicit account survives the adapter for both creation tools and approval
+// retries. Omitting it leaves resolution to the current server-side selection.
+const accountId = '76561199538876525'
+const draftArgs = { name: '账号测试', assetIds: furnaceArgs.assetIds }
+const pricedArgs = { ...furnaceArgs, prices: furnaceArgs.assetIds.map(assetId => ({ assetId, price: 1 })) }
+for (const [normalise, args] of [[normalizeInventory, {}], [normalizePrelistCreate, draftArgs], [normalizeFurnaceCreate, pricedArgs]]) {
+  assert.equal(normalise({ ...args, steamId: accountId }).steamId, accountId)
+  assert.equal('steamId' in normalise(args), false)
+  for (const steamId of ['', '7656', '7656119953887652x', 76561199538876525, null]) {
+    assert.throws(() => normalise({ ...args, steamId }), /17-digit string/)
+  }
+}
+const retryArgs = {
+  steamId: accountId,
+  approvalId: '123e4567-e89b-42d3-a456-426614174000',
+  idempotencyKey: '123e4567-e89b-42d3-a456-426614174001',
+  estimatedDepositCents: 12345,
+}
+const retry = normalizeFurnaceCreate({ ...pricedArgs, ...retryArgs })
+for (const [key, value] of Object.entries(retryArgs)) assert.equal(retry[key], value)
+assert.deepEqual(retry.prices, pricedArgs.prices)
+assert.equal(normalizePrelistCreate({ ...draftArgs, ...retryArgs }).steamId, accountId)
+await assert.rejects(byName.csforge_inventory_summary.execute({ steamId: 'invalid' }), /17-digit string/)
 for (const multiplier of [0, -1]) {
   await assert.rejects(byName.csforge_furnace_create.execute({
     ...furnaceArgs, prices: { basis: 'cost', multiplier },
@@ -161,6 +191,7 @@ assert.equal(skills.length, 1)
 assert.equal(skills[0].name, 'csforge')
 assert.ok(skills[0].description.includes('CSForge'))
 assert.ok(skills[0].content.includes('csforge_whoami'))
+assert.ok(skills[0].content.includes('API 连接时选择的是默认账号'))
 assert.ok(skills[0].content.includes('预上架'))
 for (const marker of ['1.05', '1.4', '批量', '越极限越好', '纪念品', 'guardStatus=102']) {
   assert.ok(skills[0].content.includes(marker), `skill missing rule marker: ${marker}`)

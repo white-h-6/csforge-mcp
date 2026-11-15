@@ -2,8 +2,8 @@
 name: csforge
 description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、需求确认门禁、预上架/合炉流程、材料与磨损规则、安全红线和错误重试规范；本部署相关的昵称映射、示例价格与实测快照见 references/deployment-notes.md（使用前复核，可能过期）。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.4.2"
-  date: "2026-11-12"
+  version: "0.4.3"
+  date: "2026-11-15"
 ---
 
 # CSForge Agent Skill
@@ -31,13 +31,15 @@ metadata:
 | 字段 | 含义 | 处理 |
 |---|---|---|
 | `authorized` / `configured` | 网站已授权、EcoSteam 连接已配置 | 任一为 false：停止，请用户在网站“平台连接”完成连接 |
-| `steamId` | 当前绑定执行账号 | 后续预上架/预览的真实材料都属于该账号 |
+| `steamId` | 网页当前选择的执行账号；未选择时为连接默认账号 | 后续库存与新建操作默认使用该账号；也可显式指定本人其他账号 |
 | `accounts[].accountStatus` | EcoSteam 账号状态，正常为 1 | 非 1 时平台可能拒绝，仍可尝试但需提示用户 |
 | `accounts[].guardStatus` | ECO 令牌绑定状态，`102` = 已绑定 | **打包发布/arm**需要 `guardStatus=102`；草稿创建与合炉创建不单独拦截，最终以平台回执为准；未绑定提示用户去 EcoSteam 官方渠道绑定 |
 | `accounts[].tradeReady` / `available` | 交易就绪 / 账号可用 | false 时先解决账号问题 |
 | `accountsError` | 账号列表读取失败 | 把错误如实转告，不要假装已连接 |
 
-未连接/无绑定：直接结束流程并说明需要用户完成什么，不要猜测账号或材料。
+账号选择：API 连接时选择的是默认账号。用户在网页切换后，重新调用 `csforge_whoami` 和库存；库存、库存汇总、打包预上架及合炉创建可以传可选 `steamId`，批量创建在每项内传入。显式账号须出现在本人的账号列表，选材、预览和创建使用同一个 SteamID。已有任务保留原接收账号；网站批准后重试创建时保留返回的 `steamId` 及原参数，避免网页切换影响原请求。
+
+未连接或尚无可用账号：说明需要用户完成的连接或选择，不猜测账号或材料。
 
 ### 0.2 需求确认（所有写操作的硬门禁）
 
@@ -203,7 +205,7 @@ metadata:
    | 字段 | 用途 |
    |---|---|
    | `name` | 平台标题，1–10 字符（用户指定，不是材料名） |
-   | `assetIds` | 十件合炉材料 assetId，互不相同、属于当前绑定账号 |
+   | `assetIds` | 十件合炉材料 assetId，互不相同、属于本次选定账号 |
    | `prices` | 用户逐件填写的售价数组，或用户指定的定价规则（基准和倍率）；详见 [工具参考](references/tools.md#csforge_furnace_create) |
    | `visibility` | `private` 私密 / `public` 公开（用户选择） |
    | `depositMethod` | `balance`=从用户 EcoSteam 余额扣款；`official`=生成支付宝付款码由用户扫码 |
@@ -215,7 +217,7 @@ metadata:
    | `approvalId` | 网站“Agent 接入”批准后回填；未批准不要传 |
 
    工具会先按 `priceMode=float-band` 读取产物区间估值并计算押金估算 `estimatedDepositCents`，再提交创建（服务端 oneStep 押金授权）。
-   - 该写操作按**敏感操作**处理：若网站敏感确认开启，首次返回 202+approvalId → 让用户在网站“Agent 接入”批准 → **使用首次返回的固定 `prices` 数组、原 `estimatedDepositCents`、其余参数与 `idempotencyKey` 重试，不能再次按规则取价**。
+   - 该写操作按**敏感操作**处理：若网站敏感确认开启，首次返回 202+approvalId → 让用户在网站“Agent 接入”批准 → **使用首次返回的 `steamId`、固定 `prices` 数组、原 `estimatedDepositCents`、其余参数与 `idempotencyKey` 重试，不能再次按规则取价**。
    - **售价下限**：平台会拒绝明显低于材料参考价的售价（实测记录见 `references/deployment-notes.md`，可能变化）。让用户逐件填写售价或选择定价基准与倍率，且总价严格低于最高产物估值；被拒时不要原样重试，先提高售价或换材料。
    - 若返回押金估值不可用（float-band 不完整）、材料不可用或平台明确拒绝，如实转告，不要换参数硬试。
 3. **进度**：`csforge_furnace_status({ operationId })` 只读轮询（`state`/`externalId`/`depositState`/`depositMessage`）；拿到平台合炉编号后也可用 `csforge_furnace_status({ furnaceId })` 核对押金。

@@ -29,7 +29,7 @@
 接入后先调用 `csforge_help` / `csforge_whoami`。工具名统一为 `csforge_*`，共 29 个（22 个业务工具 + 7 个批量/精简工具）：
 
 - `csforge_help`（读取接口说明、流程与确认规则）
-- `csforge_whoami`（当前 Agent 身份、绑定 steamId、EcoSteam 账号状态）
+- `csforge_whoami`（当前 Agent 身份、网页所选 steamId、EcoSteam 账号状态）
 - `csforge_find_skins`（按中英文名搜索饰品目录）
 - `csforge_analyze_recipe`（分析目标饰品十件合约配方/概率/磨损/收益）
 - `csforge_inventory`（精简库存，默认只返回 ready 且未锁定的可用资产）
@@ -59,6 +59,15 @@
 - `csforge_inventory_summary`（全量库存按 skinId 聚合：件数/可用性/float 分布）
 
 > 批量/精简工具由本地桥实现，适合“一次配置几十炉”的场景；批量写仍必须先完成 Agent Skill §0.2 的参数确认，且批量模式不处理网站 202 确认。性能取舍与站点侧建议见 `docs/performance-optimizations.md`。
+
+## 账号选择（0.3.5）
+
+API 连接时选择的 Steam 账号只作为默认值。同一 EcoSteam 连接下属于本人的账号可以在网页库存页切换，选择保存到服务端，刷新后保留，MCP 随之切换。
+
+- `csforge_whoami.steamId` 返回网页当前选择；无选择时使用连接默认账号。切换后重新读取身份和库存。
+- 库存、库存汇总、打包预上架创建和合炉创建支持可选 `steamId`；批量创建在每个 `items[]` 内指定。省略时使用上述当前选择。
+- 同一笔创建及确认重试保留返回的 `steamId`、幂等键和固定售价；已有任务继续使用原接收账号。所有接口仍校验账号归属与材料身份。
+- 通用 MCP 客户端使用服务端新能力；本地工具桥用户更新至 0.3.5 后重新加载工具和内置 Skill。
 
 ## Agent Skill
 
