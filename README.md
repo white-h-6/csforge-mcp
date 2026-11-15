@@ -33,7 +33,7 @@
 - `csforge_find_skins`（按中英文名搜索饰品目录）
 - `csforge_analyze_recipe`（分析目标饰品十件合约配方/概率/磨损/收益）
 - `csforge_inventory`（精简库存，默认只返回 ready 且未锁定的可用资产）
-- `csforge_prelist_create`（用十件材料创建打包预上架草稿）
+- `csforge_prelist_create`（用十件材料创建预上架草稿，kind=pack 或 furnace）
 - `csforge_furnace_create`（创建合炉，`prices` 支持逐件售价或 `{basis:"cost"|"floor",multiplier:1.2}`；敏感确认重试使用返回的固定售价数组）
 - `csforge_furnace_status`（查询合炉创建/押金进度）
 - `csforge_prelist_list`（查看预上架/自动上架任务，支持 phase/view 过滤）
@@ -59,6 +59,16 @@
 - `csforge_inventory_summary`（全量库存按 skinId 聚合：件数/可用性/float 分布）
 
 > 批量/精简工具由本地桥实现，适合“一次配置几十炉”的场景；批量写仍必须先完成 Agent Skill §0.2 的参数确认，且批量模式不处理网站 202 确认。性能取舍与站点侧建议见 `docs/performance-optimizations.md`。
+
+## 合炉预上架（0.3.6）
+
+现有预上架工具支持合炉：
+
+1. `csforge_prelist_create({kind:"furnace", name, assetIds, steamId?})`：仅锁定十件材料，保存未配置、未开启的草稿，不需要提前填售价或押金。
+2. `csforge_prelist_configure({id, kind:"furnace", title, prices:[{assetId,price}, ...], visibility, paymentMethod, openFeeRate, freeOpenFee, selfOpen})`：保存逐件售价、开炉费、公开设置及余额/支付宝付款方式，不发布、不扣款。
+3. `csforge_prelist_arm({id})`：按现有确认设置申请发布，校验冷却与付款条件；草稿创建不等于已上架。
+
+批量合炉先用 `csforge_prelist_create_many`，再用 `csforge_prelist_configure_many` 逐炉填写十件售价。`csforge_furnace_create` 仍是直接发布入口。
 
 ## 账号选择（0.3.5）
 

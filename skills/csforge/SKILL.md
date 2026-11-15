@@ -2,7 +2,7 @@
 name: csforge
 description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、需求确认门禁、预上架/合炉流程、材料与磨损规则、安全红线和错误重试规范；本部署相关的昵称映射、示例价格与实测快照见 references/deployment-notes.md（使用前复核，可能过期）。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.4.3"
+  version: "0.4.4"
   date: "2026-11-15"
 ---
 
@@ -156,7 +156,7 @@ metadata:
 - **账号门槛**：`guardStatus=102`（ECO 令牌已绑定）是**打包发布/arm**的硬性要求；打包草稿创建与合炉创建不单独拦截 102，但要求 EcoSteam 交易链接实时验证通过，付款/上架结果以平台回执为准。不满足时先告知用户去 EcoSteam 官方渠道处理，不要绕过。
 - **纪念品**：Souvenir 纪念品可以作为汰换材料。
 - **冷却材料**：冷却中的材料可以先进预上架草稿；发布后到期会自动上架并自动从余额扣押金。
-- **合炉入口**：Agent 可用 `csforge_furnace_create` 创建合炉（十件材料 + 用户指定售价或定价规则 + 押金方式），但**不提供** automatic/CD 定时合炉；开炉、付款与平台提交按原有平台流程执行，结果以回执为准。
+- **合炉入口**：Agent 可用 `csforge_furnace_create` 创建合炉（十件材料 + 用户指定售价或定价规则 + 押金方式），该直接发布入口**不提供** automatic/CD 定时合炉；合炉预上架使用 `csforge_prelist_create(kind=furnace)`；开炉、付款与平台提交按原有平台流程执行，结果以回执为准。
 
 ## 4. 工作流 A：库存与选材（只读）
 
@@ -227,7 +227,15 @@ metadata:
      - `amount`/`amountCents` 是**二维码订单报价（应付估算）**，不等于实际扣款；支付完成后如实说明“实际扣款以平台/支付宝账单为准”，用户告知实际金额时以用户/账单为准，不得把报价当已扣款。
 5. **结果不明**（超时/网络中断）：只查 `csforge_furnace_status`，**禁止换幂等键重复创建**。
 6. 交付时给出：operationId、平台合炉编号（若有）、10 件材料+用户售价、押金方式/估算、当前状态（creating/paying/paid/alipay/failed/unknown）、下一步。
-7. 限制：Agent 入口**不创建** automatic/CD 定时合炉；合炉不会由 Agent 开炉；`csforge_save_recipe` 只保存平台配方，与合炉创建无关。
+7. 限制：`csforge_furnace_create` **不创建** automatic/CD 定时合炉；预上架见下节；合炉不会由 Agent 开炉；`csforge_save_recipe` 只保存平台配方，与合炉创建无关。
+
+### 合炉先保存预上架
+
+用户要求先保存草稿、预上架或材料有 CD 时，使用 `csforge_prelist_create(kind=furnace)`，可暂不填售价；默认 kind=pack 保持打包行为。草稿只锁材料，不付款、不发布。
+
+后续用 `csforge_prelist_configure` 传 `kind=furnace`、十件固定 `prices`、标题、公开设置、`paymentMethod=balance|alipay` 和用户选定的开炉费设置。配置通过后再按用户指示调用 `csforge_prelist_arm`；确认重试保留原参数。用户明确要直接发布时才使用 `csforge_furnace_create`。
+
+批量合炉使用 `csforge_prelist_create_many` 后 `csforge_prelist_configure_many`，每炉提供自己的材料售价。一步创建并共用总价的 `csforge_prelist_create_configure_many` 用于打包。
 
 ## 7. 工作流 D：用户发布后核对
 

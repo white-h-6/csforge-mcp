@@ -187,6 +187,7 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 参数：
 ```json
 {
+  "kind": "pack",             // 可选 pack（默认）或 furnace（合炉）
   "name": "红色轮胎",           // 平台标题，≤10 个字符
   "steamId": "7656...",         // 可选：本人账号；省略时跟随网页选择，再回退连接默认账号
   "assetIds": ["10 个不同 assetId"],
@@ -195,10 +196,14 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
   "approvalId": "uuid"          // 仅在网站批准后重试时传
 }
 ```
-行为：服务端强制 `kind=pack`、`prelist=true`、`armed=false`、`configured=false`；材料立即锁定并从库存隐藏；**不付款、不提交、默认不开启自动上架**。发布需 `csforge_prelist_arm` 并经用户在网站批准。
+行为：支持 `kind=pack|furnace`，服务端强制 `prelist=true`、`armed=false`、`configured=false`；材料立即锁定并从库存隐藏；**不付款、不提交、默认不开启自动上架**。发布需 `csforge_prelist_arm` 并经用户在网站批准。
 返回：`{ status, steamId, idempotencyKey, operationId, state, externalId?, message }`（202 时含 approvalRequired/approvalId 与提示）。确认重试保留返回的 `steamId` 和原幂等键。
 
 ### csforge_prelist_configure
+
+合炉传 `kind:"furnace"`、十件 `prices:[{assetId,price}]`，以及可选 `openFeeRate`（0–10）、`freeOpenFee`、`selfOpen`；不填打包总价 `sellPrice`。公开和付款参数沿用下方字段。配置只保存信息，不提交平台；发布另调 `csforge_prelist_arm`。
+
+打包参数示例：
 参数：
 ```json
 {

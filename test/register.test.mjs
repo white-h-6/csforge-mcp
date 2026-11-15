@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { existsSync, unlinkSync } from 'node:fs'
-import { apply, Config, projectMcpResult, normalizeInventory, normalizePrelistCreate, normalizeFurnaceCreate } from '../lib/bridge.js'
+import { apply, Config, projectMcpResult, normalizeInventory, normalizePrelistCreate, normalizeFurnaceCreate, normalizePrelistConfigure } from '../lib/bridge.js'
 
 const tools = []
 const skills = []
@@ -142,6 +142,21 @@ const retry = normalizeFurnaceCreate({ ...pricedArgs, ...retryArgs })
 for (const [key, value] of Object.entries(retryArgs)) assert.equal(retry[key], value)
 assert.deepEqual(retry.prices, pricedArgs.prices)
 assert.equal(normalizePrelistCreate({ ...draftArgs, ...retryArgs }).steamId, accountId)
+assert.equal(normalizePrelistCreate({ ...draftArgs, kind: 'furnace' }).kind, 'furnace')
+assert.throws(() => normalizePrelistCreate({ ...draftArgs, kind: 'unknown' }), /kind must be/)
+assert.ok(byName.csforge_prelist_create.parameters.properties.kind.enum.includes('furnace'))
+assert.ok(byName.csforge_prelist_create_many.parameters.properties.items.items.properties.kind.enum.includes('furnace'))
+assert.ok(byName.csforge_prelist_configure_many.parameters.properties.items.items.properties.prices)
+const furnaceConfig = {
+  id: retryArgs.idempotencyKey, title: '合炉草稿', kind: 'furnace', prices: pricedArgs.prices,
+  visibility: 'public', paymentMethod: 'alipay', openFeeRate: 10, freeOpenFee: false, selfOpen: true,
+}
+assert.deepEqual(normalizePrelistConfigure(furnaceConfig), furnaceConfig)
+assert.throws(() => normalizePrelistConfigure({ ...furnaceConfig, prices: undefined }), /ten fixed prices/)
+assert.throws(() => normalizePrelistConfigure({ ...furnaceConfig, openFeeRate: 11 }), /between 0 and 10/)
+assert.throws(() => normalizePrelistConfigure({ ...furnaceConfig, prices: pricedArgs.prices.slice(0, 9) }), /exactly 10/)
+const packConfig = { id: retryArgs.idempotencyKey, title: '打包草稿', sellPrice: 10, visibility: 'private' }
+assert.deepEqual(normalizePrelistConfigure(packConfig), packConfig)
 await assert.rejects(byName.csforge_inventory_summary.execute({ steamId: 'invalid' }), /17-digit string/)
 for (const multiplier of [0, -1]) {
   await assert.rejects(byName.csforge_furnace_create.execute({
