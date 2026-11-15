@@ -2,13 +2,14 @@
 name: csforge
 description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、需求确认门禁、预上架/合炉流程、材料与磨损规则、安全红线和错误重试规范；本部署相关的昵称映射、示例价格与实测快照见 references/deployment-notes.md（使用前复核，可能过期）。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.4.6"
-  date: "2026-11-15"
+  version: "0.4.7"
+  date: "2026-11-16"
 ---
 
 # CSForge Agent Skill
 
 > 本 Skill 面向“帮用户操作 CSForge 网站”的 Agent；站点部署、服务器运维、数据库维护不属于本 Skill 范围。
+> 用户要求安装/连接 MCP 时先读 [安装指南](../../docs/INSTALL.md)，完成配置、私密认证和只读验证；只要求安装时不进入创建或发布流程。
 > 工具名以当前客户端注册的 `csforge_*` 为准，本文不绑定特定插件/客户端；站点端说明可用 `csforge_help` 复核。
 > **通用性约定**：本文件只放跨账号、跨客户端稳定的规则与流程；昵称映射、具体库存/价格、实测金额等**本部署快照**统一放在 `references/deployment-notes.md`，使用前先用 `find_skins` / `inventory` 复核，不要把快照当事实。
 

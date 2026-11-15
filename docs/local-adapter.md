@@ -2,6 +2,8 @@
 
 本文件只描述可选的 DeepSeek Harness 适配器；通用 MCP 接入与 Agent Skill 见仓库根目录 `README.md` 和 `skills/csforge/SKILL.md`。其他 MCP 客户端不需要本适配器。
 
+安装入口统一见 [INSTALL.md](INSTALL.md)。原生支持 Streamable HTTP 的客户端优先直连，不经过本桥接层；只有当前客户端需要此适配器时才执行以下步骤。网站“一键复制给 Agent”只提供项目地址和安装请求，认证时另用“复制密钥”。
+
 ## 包与配置
 
 适配器包名 `dsh-csforge-mcp`，通过 `cordis.patch.yml` 插入加载项。机器相关配置放在用户的 DSH profile patch 中：

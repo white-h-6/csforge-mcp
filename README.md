@@ -2,7 +2,20 @@
 
 > 仓库：<https://github.com/white-h-6/csforge-mcp>
 >
-> CSForge Streamable HTTP MCP 的通用接入资料：中文 Agent Skill、29 个 `csforge_*` 工具约定（含批量/精简工具）、两个只读计算脚本（候选搜索 + 预算式配炉求解器），以及一个可选的本地工具桥适配器（说明见 `docs/local-adapter.md`）。核心内容不绑定任何客户端，任何支持 Streamable HTTP MCP 的 Agent 都可以直接接入。
+> CSForge 远程 MCP 的安装与操作资料。支持 Streamable HTTP 的 Agent 可连接网站，使用库存、配方、预上架、合炉和打包汰换工具。
+
+## 让 Agent 安装
+
+把下面两行发给 Agent 即可，安装与操作说明由仓库维护：
+
+```text
+帮我安装并配置这个 MCP，按仓库中的安装说明操作：
+https://github.com/white-h-6/csforge-mcp
+```
+
+**Agent 请先读取 [安装指南](docs/INSTALL.md)。** 按当前客户端配置连接。需要认证时，由用户从网站“Agent 接入”单独复制密钥，放入客户端私密配置；上面的安装请求不包含令牌。
+
+安装指南负责客户端配置、授权与只读验收；[操作 Skill](skills/csforge/SKILL.md) 和 [工具参考](skills/csforge/references/tools.md) 负责站内操作。连接后先调用 `csforge_help`、`csforge_whoami`，只要求安装时不执行业务写入。
 
 ## 通用 MCP 接入
 
@@ -46,7 +59,7 @@
 - `csforge_pack_price`（修改已上架打包汰换售价，敏感写；需用户给价）
 - `csforge_pack_relist_preview`（只读核对原配置和重新上架进度）
 - `csforge_pack_relist`（按原十件材料、原标题、当前售价、公开设置和付款方式重新上架；敏感写，需网站确认）
-- `csforge_preview_assets`（一次预览 1–5 组候选十件材料的产物/概率/磨损/价格）
+- `csforge_preview_assets`（一次预览 1–25 组候选十件材料的产物/概率/磨损/价格）
 - `csforge_save_recipe`（保存 EcoSteam 平台十件配方）
 - `csforge_request`（兜底调用其他已开放 `/api/` 业务接口）
 - `csforge_open_page`（让在线 CSForge 网页切换页面，含预上架深链）
@@ -58,7 +71,7 @@
 - `csforge_prelist_brief`（预上架精简状态，无 10 件材料明细）
 - `csforge_inventory_summary`（全量库存按 skinId 聚合：件数/可用性/float 分布）
 
-> 批量/精简工具由本地桥实现，适合“一次配置几十炉”的场景；批量写仍必须先完成 Agent Skill §0.2 的参数确认，且批量模式不处理网站 202 确认。性能取舍与站点侧建议见 `docs/performance-optimizations.md`。
+> 批量/精简工具适合“一次配置几十炉”的场景，可用工具以客户端实际列表为准；批量写仍必须先完成 Agent Skill §0.2 的参数确认，且批量模式不处理网站 202 确认。性能取舍与站点侧建议见 `docs/performance-optimizations.md`。
 
 ## 库存成本（0.3.7）
 
@@ -100,8 +113,6 @@ API 连接时选择的 Steam 账号只作为默认值。同一 EcoSteam 连接�
 - Agent 只能访问 CSForge 开放的业务接口，不能访问账户、管理员或令牌管理界面。
 - `csforge_save_recipe` 不生成或替换 `idempotencyKey`；`csforge_prelist_create` 未提供时由远端生成并返回，确认重试必须复用。
 
-## 可选：本地工具桥适配器
+## 特定客户端
 
-本仓库还包含一个可选的本地工具桥，用于在支持 Cordis 加载器的本地 Harness 中注册同样的 29 个工具并加载内置 Skill。安装、profile 配置、令牌保存和启停方式见 [docs/local-adapter.md](docs/local-adapter.md)。
-
-普通 MCP 客户端无需安装这个适配器。
+DeepSeek Harness / Cordis 的专用配置见 [docs/local-adapter.md](docs/local-adapter.md)。其他客户端按 [安装指南](docs/INSTALL.md) 配置。
