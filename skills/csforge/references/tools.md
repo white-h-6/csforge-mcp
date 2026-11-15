@@ -116,12 +116,14 @@
   "assets": [
     {"assetId":"...","skinId":"...","name":"M249 | 冻雨","float":0.0695,
      "ready":true,"locked":false,"prelisted":false,"available":true,"canUse":true,
-     "price": 0.17}   // includePrices=true 时才有
+     "costCents": 15, "costSource": "inventory",
+     "price": 0.17}   // price 仅 includePrices=true 时才有
   ]
 }
 ```
 - `available = ready && !locked && !prelisted`，创建预上架/预览优先用它。
 - `canUse` 只是结构可用（有皮肤身份与磨损），稀有度/收藏合格仍由服务端复核。
+- `costCents` 默认始终返回，单位分（15 = ¥0.15），来自该账号该资产的平台库存 `BasePrice`；缺失或无效时为 `null`，`costSource` 同为 `null`。不能用行情价或零值代替未知成本。
 - 原始 `GET /api/execution/inventory` 体积大，禁止用 `csforge_request` 拉取。
 
 ### csforge_preview_assets

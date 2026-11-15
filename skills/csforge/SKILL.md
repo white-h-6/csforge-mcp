@@ -2,7 +2,7 @@
 name: csforge
 description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、需求确认门禁、预上架/合炉流程、材料与磨损规则、安全红线和错误重试规范；本部署相关的昵称映射、示例价格与实测快照见 references/deployment-notes.md（使用前复核，可能过期）。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.4.5"
+  version: "0.4.6"
   date: "2026-11-15"
 ---
 
@@ -164,7 +164,7 @@ metadata:
 2. 用 `query`/`skinId` 缩小范围；需要完整池子时按 200 上限分页（记录 total）；
 3. 关注 `ready`（冷却/交易/上架状态）、`locked`、`prelisted`、`canUse`（结构可用的粗判，不代表稀有度/收藏合格）；
 4. 冷却中的材料：可以讨论，但用户要求“只用可上架材料”时不要选；
-5. 价格口径提醒：`csforge_inventory` 的 price 是库存参考价，和 `csforge_preview_assets`/预上架模拟里的 cost 可能来自不同快照，**不要混用**，需注明来源。
+5. 成本：`csforge_inventory` 逐件默认返回 `costCents`（平台库存 BasePrice，单位分）及 `costSource:"inventory"`；未知时两者均为 `null`，不能按零成本计算。`includePrices` 只控制 `price`（参考行情价，单位元），不影响成本返回。预览/模拟的 `cost` 是估值口径，分别使用。
 
 ## 5. 工作流 B：找炉 / 卡磨损（只读优先）
 
