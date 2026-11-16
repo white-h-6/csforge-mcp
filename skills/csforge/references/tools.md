@@ -69,7 +69,10 @@
   "unavailableReason": "", "accountsError": ""
 }
 ```
-- `guardStatus=102`：ECO 令牌已绑定（打包汰换要求）。
+- `steamId` 是网页当前执行账号；网页未选择时才回退连接默认账号。网页切换会保留到服务端，切换后重读本工具和库存。连接默认账号不限制同一连接下其他本人账号的读取/创建。
+- 库存、库存汇总和创建工具可显式传本人其他账号的 `steamId`；批量创建在每项内指定。选材、预览、创建使用同一个账号；已有任务保留原接收账号，审批重试保留首次返回的 `steamId`。
+- `authorized/configured` 仅说明授权/连接是否完成，不能据此认定所有账号都可交易。`tradeReady/available/statusMessage` 用于核对当前平台限制，是否接受操作以平台回执为准。
+- `guardStatus=102`：ECO 令牌已绑定（打包发布要求）。
 - `accountStatus=1`：账号状态正常。
 - `accountsError` 存在表示账号读取失败，不要据此继续交易操作。
 
@@ -124,6 +127,8 @@
 - `available = ready && !locked && !prelisted`，创建预上架/预览优先用它。
 - `canUse` 只是结构可用（有皮肤身份与磨损），稀有度/收藏合格仍由服务端复核。
 - `costCents` 默认始终返回，单位分（15 = ¥0.15），来自该账号该资产的平台库存 `BasePrice`；缺失或无效时为 `null`，`costSource` 同为 `null`。不能用行情价或零值代替未知成本。
+- `includePrices` 只控制 `price`（行情参考价，元），不影响成本字段。预览/模拟里的 `cost` 是估值口径，分别使用。
+- 旧库存快照可补入已保存的同用户、同 Steam 账号、同凭据及同资产身份的库存成本，不新增购买历史扫描；没有证据的成本保持未知。
 - 原始 `GET /api/execution/inventory` 体积大，禁止用 `csforge_request` 拉取。
 
 ### csforge_preview_assets
@@ -137,7 +142,7 @@
   ]
 }
 ```
-- 1–5 组，每组恰好 10 个不同资产。
+- 1–25 组，每组恰好 10 个不同资产；可用 targetSkinId 仅返回目标产物。
 - 每组返回：`{ index, cost, expectedValue, pricingPending, outcomes:[{name,skinId,float,wear,probability,price}] }`
 - 单组失败返回 `{ index, error }`；`failed` 为失败组数。
 - 这是验证候选炉磨损/概率/价格的权威站点计算，创建草稿前必须用它复核。
@@ -198,32 +203,40 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
   "approvalId": "uuid"          // 仅在网站批准后重试时传
 }
 ```
-行为：支持 `kind=pack|furnace`，服务端强制 `prelist=true`、`armed=false`、`configured=false`；材料立即锁定并从库存隐藏；**不付款、不提交、默认不开启自动上架**。发布需 `csforge_prelist_arm` 并经用户在网站批准。
+行为：两种类型统一采用 create → configure → arm；创建时均无需填售价或押金。支持 `kind=pack|furnace`，服务端强制 `prelist=true`、`armed=false`、`configured=false`；材料立即锁定并从库存隐藏；**不付款、不提交、默认不开启自动上架**。发布需另调 `csforge_prelist_arm`；返回 202 时等待网站批准，草稿创建不表示已发布。
 返回：`{ status, steamId, idempotencyKey, operationId, state, externalId?, message }`（202 时含 approvalRequired/approvalId 与提示）。确认重试保留返回的 `steamId` 和原幂等键。
 
 ### csforge_prelist_configure
 
-合炉传 `kind:"furnace"`、十件 `prices:[{assetId,price}]`，以及可选 `openFeeRate`（0–10）、`freeOpenFee`、`selfOpen`；不填打包总价 `sellPrice`。公开和付款参数沿用下方字段。配置只保存信息，不提交平台；发布另调 `csforge_prelist_arm`。
+只保存本人未开启草稿的发布信息，不发布、不扣款。两种类型共用此工具：
 
-打包参数示例：
-参数：
-```json
-{
-  "id": "预上架 uuid",
-  "title": "红色轮胎",          // ≤10 个字符
-  "sellPrice": 7.5,             // 两位小数，必须低于最高产物价值
-  "visibility": "private",
-  "paymentMethod": "alipay",    // 可选：balance|alipay
-  "approvalId": "uuid"          // 可选，仅批准后重试
-}
-```
-返回：`{ status, id, configured, title, sellPrice, visibility, paymentMethod? }`
+| 字段 | 适用范围 | 含义 |
+|---|---|---|
+| `id` | 共用，必填 | 创建返回的 operationId / 草稿 UUID |
+| `title` | 共用，必填 | 用户指定的平台标题，1–10 字符 |
+| `kind` | 共用，可选 | pack=打包汰换，furnace=合炉；服务端省略时沿用草稿类型。客户端适配器传 prices 时按合炉校验；建议明确传类型 |
+| `visibility` | 共用，必填 | private / public，由用户选择 |
+| `paymentMethod` | 共用，可选 | balance=余额，alipay=支付宝；省略保留已有设置，无已有设置时为 balance |
+| `saveRecipe` | 共用，可选 | 是否保留平台配方；省略保留已有设置 |
+| `sellPrice` | pack 必填 | 出售总价，单位元、最多两位小数 |
+| `prices` | furnace 必填 | 恰好十件固定售价 [{assetId,price}]，逐件对应当前材料，单位元、最多两位小数；本工具不接收定价规则对象 |
+| `openFeeRate` | furnace，可选 | 开炉费百分比 0–10，省略为 0，由用户决定 |
+| `freeOpenFee` | furnace，可选 | 是否免开炉费，省略为 true，由用户决定 |
+| `selfOpen` | furnace，可选 | 是否允许自己开炉，省略为 true，由用户决定 |
+| `approvalId` | 确认重试 | 仅在网站批准后与全部原参数一起重试 |
+
+返回：`{status,id,configured,title,sellPrice,visibility,paymentMethod}`；合炉逐件售价使用 `csforge_prelist_list` 核对。`configured=true` 表示保存成功，发布另调 `csforge_prelist_arm`。返回 202 时等待批准后按原参数重试。
+
+批量场景：`csforge_prelist_create_many` 后可用 `csforge_prelist_configure_many` 逐项配置两种类型；`csforge_prelist_create_configure_many` 共用出售总价的快捷流程适用于打包。用户明确要直接发布合炉时使用 `csforge_furnace_create`，其参数见对应工具。
 
 ### csforge_prelist_arm
-参数：`{ "id": "预上架 uuid", "approvalId": "uuid" }`
-- 首次调用返回 `202 approvalRequired=true + approvalId`；用户必须在网站“Agent 接入”页面批准，然后用相同 id+approvalId 重试。
-- Agent 确认未开启或用户未批准时不会发布；服务端仍按 CD、押金、平台提交校验执行。
-返回：`{ status, id, armed, scheduledAt? }`。
+
+参数：`{id: 草稿UUID, approvalId?: 确认编号}`，打包汰换和合炉共用此工具。
+
+- 前置：本人草稿已配置，用户明确要求发布；按草稿保存的材料、售价和付款方式执行。
+- 属于敏感写操作，是否需要网站批准由对应确认开关决定。返回 `202 approvalRequired=true + approvalId` 时，须等待本人在网站“Agent 接入”批准，再用相同 id + approvalId 重试。
+- 返回 `{status,id,armed,scheduledAt}`。armed / scheduledAt 表示已开启或排期，不能据此宣称平台已上架或已付款；继续用任务列表 / 合炉状态工具核对。服务端按 CD、材料锁、押金和平台回执处理。
+- 余额按已授权流程处理；支付宝用 `csforge_alipay_qr` 获取已有订单二维码，由用户本人付款。超时先查原任务，不重新创建订单。
 
 ### csforge_alipay_qr
 参数：`{ "id": "uuid 或合炉编号", "kind": "pack", "maxWaitMs": 20000 }`
@@ -297,9 +310,9 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 - **不要**换 `idempotencyKey` 重新提交，可能重复创建或重复付款；
 - 明确被平台拒绝（如 ECO `ResultCode=1/2001`）时，读 `message` 并转告用户，不要盲目重试。
 
-## 批量 / 精简工具（v0.3.0 新增，本地桥实现）
+## 批量与精简工具
 
-> 这些工具由本地工具桥执行：内部并发（默认 5，可调 1–8）、对“库存状态已变化 / 分页重复 / 超时”等**执行前**失败做指数退避重试；只读工具标记为可并发。批量写仍受 Agent Skill §0.2 参数确认约束；批量模式不处理网站 202 确认，遇到 `approvalRequired` 的条目需人工逐条处理。
+> 可用工具以当前客户端列表为准；批量工具内部并发（默认 5，可调 1–8）、对“库存状态已变化 / 分页重复 / 超时”等**执行前**失败做指数退避重试；只读工具标记为可并发。批量写仍受 Agent Skill §0.2 参数确认约束；批量模式不处理网站 202 确认，遇到 `approvalRequired` 的条目需人工逐条处理。
 
 ### csforge_prelist_create_many
 参数：`{ "items": [{"name":"标题","assetIds":[10 个],"visibility":"public"}], "concurrency": 5 }`（1–50 条）

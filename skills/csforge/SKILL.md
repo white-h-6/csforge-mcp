@@ -2,7 +2,7 @@
 name: csforge
 description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、需求确认门禁、预上架/合炉流程、材料与磨损规则、安全红线和错误重试规范；本部署相关的昵称映射、示例价格与实测快照见 references/deployment-notes.md（使用前复核，可能过期）。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.4.7"
+  version: "0.4.8"
   date: "2026-11-16"
 ---
 
@@ -25,22 +25,9 @@ metadata:
 
 ### 0.1 身份与账号（只读，一次调用）
 
-先调用 `csforge_whoami`，不要一上来就拉库存/开始分析。
+调用 `csforge_whoami` 核对授权与当前执行账号；字段、账号选择优先级及状态含义见该工具说明和 [工具参考](references/tools.md#csforge_whoami)。
 
-返回字段与判断：
-
-| 字段 | 含义 | 处理 |
-|---|---|---|
-| `authorized` / `configured` | 网站已授权、EcoSteam 连接已配置 | 任一为 false：停止，请用户在网站“平台连接”完成连接 |
-| `steamId` | 网页当前选择的执行账号；未选择时为连接默认账号 | 后续库存与新建操作默认使用该账号；也可显式指定本人其他账号 |
-| `accounts[].accountStatus` | EcoSteam 账号状态，正常为 1 | 非 1 时平台可能拒绝，仍可尝试但需提示用户 |
-| `accounts[].guardStatus` | ECO 令牌绑定状态，`102` = 已绑定 | **打包发布/arm**需要 `guardStatus=102`；草稿创建与合炉创建不单独拦截，最终以平台回执为准；未绑定提示用户去 EcoSteam 官方渠道绑定 |
-| `accounts[].tradeReady` / `available` | 交易就绪 / 账号可用 | false 时先解决账号问题 |
-| `accountsError` | 账号列表读取失败 | 把错误如实转告，不要假装已连接 |
-
-账号选择：API 连接时选择的是默认账号。用户在网页切换后，重新调用 `csforge_whoami` 和库存；库存、库存汇总、打包预上架及合炉创建可以传可选 `steamId`，批量创建在每项内传入。显式账号须出现在本人的账号列表，选材、预览和创建使用同一个 SteamID。已有任务保留原接收账号；网站批准后重试创建时保留返回的 `steamId` 及原参数，避免网页切换影响原请求。
-
-未连接或尚无可用账号：说明需要用户完成的连接或选择，不猜测账号或材料。
+连接或账号读取失败时说明原因；账号切换后重读身份与库存。选材、预览与创建始终保持同一账号，已有任务及审批重试保留原账号，不混用材料。
 
 ### 0.2 需求确认（所有写操作的硬门禁）
 
@@ -161,16 +148,14 @@ metadata:
 
 ## 4. 工作流 A：库存与选材（只读）
 
-1. `csforge_inventory`：默认 `availableOnly=true`，`limit` 50（最大 200），`includePrices=false`；
-2. 用 `query`/`skinId` 缩小范围；需要完整池子时按 200 上限分页（记录 total）；
-3. 关注 `ready`（冷却/交易/上架状态）、`locked`、`prelisted`、`canUse`（结构可用的粗判，不代表稀有度/收藏合格）；
-4. 冷却中的材料：可以讨论，但用户要求“只用可上架材料”时不要选；
-5. 成本：`csforge_inventory` 逐件默认返回 `costCents`（平台库存 BasePrice，单位分）及 `costSource:"inventory"`；未知时两者均为 `null`，不能按零成本计算。`includePrices` 只控制 `price`（参考行情价，单位元），不影响成本返回。预览/模拟的 `cost` 是估值口径，分别使用。
+1. 逐件选材用 `csforge_inventory`；仅需数量或磨损分布时优先 `csforge_inventory_summary`。按目标缩小查询范围，避免重复拉取完整库存。
+2. 参数、可用标记和成本/行情字段语义见 [库存工具参考](references/tools.md#csforge_inventory)。用户要求只用可上架材料时，按实际可用状态筛选，锁定材料不重复使用。
+3. 展示方案时依据数据来源说明实际成本和模拟估值；缺失成本保持未知，不能自行补零或改用行情价。
 
 ## 5. 工作流 B：找炉 / 卡磨损（只读优先）
 
 1. 开始前必须先完成 §0.2 需求确认；确认后明确四要素：目标饰品（skinId/名称）、目标磨损（FN/MW/FT/WW/BS）、材料组成、硬约束（只用可上架材料、只要入档或贴边、成本上限等）。
-2. 用 `csforge_preview_assets`（1–5 组）或 `csforge_preview_many`（1–100 组，传 `targetSkinId` 只回目标产物）验证候选，以站点返回的 `outcomes[].float/wear/probability/price` 为准。
+2. 用 `csforge_preview_assets` 或 `csforge_preview_many`（1–100 组，传 `targetSkinId` 只回目标产物）验证候选，以站点返回的 `outcomes[].float/wear/probability/price` 为准。
 3. 磨损规则（站点 `normalized-2025-10`）：先对每件材料按自身区间归一化 `(float-min)/(max-min)`，取平均后映射到目标区间 `目标float = 目标min + 平均 × (目标max - 目标min)`。
 4. 磨损档位边界：按目标档位取区间：FN <0.07；MW 0.07–<0.15；FT 0.15–<0.38；WW 0.38–<0.45；BS 0.45–1.00；再与目标皮肤 maxFloat 求交。B 方向要求产物尽量接近所选档位上限但仍属于该档（如 MW 接近但严格小于 0.15，FN 接近但严格小于 0.07）；C 方向接近该档下限。
 5. 需要精确搜索时：先算候选组合的平均归一化磨损，再逐组用 `csforge_preview_assets` 复核；不要只靠本地公式就创建草稿。
@@ -184,61 +169,17 @@ metadata:
 7. 展示多个炉时给出：方案、10 件材料（名称+float）、目标产物 float/概率、材料成本、期望值/收益、风险提示。排序必须服从 N2 方向：A 按成本/库存；B 按预测 float 从高到低，但必须仍在目标档位内；C 按预测 float 从低到高。用户要几个方案就给几个方案，方案是只读展示，不创建。
 8. 等用户选定方案后再进入创建流程；**不要**自动创建预上架或替用户下单。创建份数以 §0.2 N3 用户确认的数字为准（允许批量，但不得自行取材料上限）。
 
-## 6. 工作流 C：创建预上架（打包汰换）草稿
+## 6. 工作流 C：按用户要求创建与发布
 
-前置：**§0.2 需求确认已完成（N1–N6 逐项有值）**；`csforge_whoami` 正常；10 件材料来自当前账号；`guardStatus=102` 是**发布/arm**要求，草稿创建不拦截（未绑定时创建后告知用户发布前需绑定）。数量以用户确认的具体数字为准，**不得自行取材料上限**；冷却中的材料可以进草稿。
+前置：完成 §0.2 的需求确认，并核对本人账号、材料归属及可用性。数量与价格遵从用户已确认的要求，不自行采用库存上限或历史参数。
 
-1. **创建**：`csforge_prelist_create`，`name` 即平台标题（≤10 个字符），`assetIds` 恰好 10 个不同资产；`idempotencyKey` 可省略（结果会返回，重试必须复用）。成功后材料立即锁定并隐藏，不付款、不提交。
-2. **核对**：`csforge_prelist_list`（`view=active, phase=prelist`）确认 `prelist=true, armed=false, configured=false`、10 件材料匹配；需要刷新估值用 `csforge_prelist_simulate`（只更新缓存）。
-3. **发布信息**：只有用户明确给出标题/售价/公开私密后才调用 `csforge_prelist_configure`；不要替用户定价。**总售价必须严格低于最高产物价值**；`title` ≤10、`sellPrice` 两位小数、`visibility=private|public`；押金选择支付宝时传 `paymentMethod=alipay`。
-4. **发布/arm**：用户明确要 Agent 发布时，调用 `csforge_prelist_arm`（首次返回 202+approvalId）；告知用户在网站“Agent 接入”页面批准，然后用相同 id+approvalId 重试。用户未批准或关闭 Agent 确认时不得发布，也不要改用其他接口绕过。发布后按 CD、押金和平台提交流程执行。
-5. **支付宝押金二维码**：配置 `paymentMethod=alipay` 并且 arm 成功后，调用只读工具 `csforge_alipay_qr`（可用 `maxWaitMs` 轮询等待）取二维码；把二维码图片和**金额、过期时间、任务编号、当前状态**一起交付（见 §11），限本人扫码，**Agent 不代付、不确认支付、不发到群聊**。二维码未就绪时如实告知，稍后再查。
-6. **取消**：`csforge_prelist_cancel`（写操作，可能需要确认），释放材料锁。
-7. **批量（≥3 炉）**：用 `csforge_prelist_create_configure_many`（一次调用完成“建草稿 + 填发布信息”，内部并发 + 瞬时错误重试），或分开用 `csforge_prelist_create_many` + `csforge_prelist_configure_many`；状态核对用 `csforge_prelist_brief`（精简，无材料明细）而不是每次都拉 `csforge_prelist_list`。批量写同样必须先完成 §0.2 确认；批量模式不处理网站 202 确认，逐条失败可单独重试。
-8. 交付时给出：预上架 id、名称、10 件材料清单、模拟目标产物 float/概率、成本/期望值、当前状态、押金方式、下一步（用户批准发布/扫码付款）。
-
-### 6.1 合炉（Agent 可创建，敏感操作）
-
-前置：§0.2 已确认 N1–N6，尤其是材料组成与 **N6 的每件材料售价（用户给）**、公开/私密、押金方式（余额/支付宝）、开炉费设置。
-
-1. **报价（只读）**：先用 `csforge_preview_assets` 或站点预览给出十件材料的产物/概率/磨损；把 10 件材料表（序号/名称/float/参考价）交给用户，**由用户逐件填写售价或选择按成本/磨损底价及倍率**，Agent 不擅自选价、不承诺押金金额。
-2. **创建**：`csforge_furnace_create({ name, assetIds, prices, visibility, depositMethod, openFeeRate?, freeOpenFee?, selfOpen? })`。
-   字段用途（每一项都要向用户解释，不许自行填值）：
-
-   | 字段 | 用途 |
-   |---|---|
-   | `name` | 平台标题，1–10 字符（用户指定，不是材料名） |
-   | `assetIds` | 十件合炉材料 assetId，互不相同、属于本次选定账号 |
-   | `prices` | 用户逐件填写的售价数组，或用户指定的定价规则（基准和倍率）；详见 [工具参考](references/tools.md#csforge_furnace_create) |
-   | `visibility` | `private` 私密 / `public` 公开（用户选择） |
-   | `depositMethod` | `balance`=从用户 EcoSteam 余额扣款；`official`=生成支付宝付款码由用户扫码 |
-   | `openFeeRate` | 开炉费百分比 0–10，默认 0（用户决定） |
-   | `freeOpenFee` | 是否免开炉费，默认 true（用户决定） |
-   | `selfOpen` | 是否允许自己开炉，默认 true（用户决定） |
-   | `estimatedDepositCents` | 押金估算（分）：首次省略、工具计算并返回；带 approvalId 重试时**原样回传** |
-   | `idempotencyKey` | 幂等键：省略由工具生成并返回，确认重试必须复用 |
-   | `approvalId` | 网站“Agent 接入”批准后回填；未批准不要传 |
-
-   工具会先按 `priceMode=float-band` 读取产物区间估值并计算押金估算 `estimatedDepositCents`，再提交创建（服务端 oneStep 押金授权）。
-   - 该写操作按**敏感操作**处理：若网站敏感确认开启，首次返回 202+approvalId → 让用户在网站“Agent 接入”批准 → **使用首次返回的 `steamId`、固定 `prices` 数组、原 `estimatedDepositCents`、其余参数与 `idempotencyKey` 重试，不能再次按规则取价**。
-   - **售价下限**：平台会拒绝明显低于材料参考价的售价（实测记录见 `references/deployment-notes.md`，可能变化）。让用户逐件填写售价或选择定价基准与倍率，且总价严格低于最高产物估值；被拒时不要原样重试，先提高售价或换材料。
-   - 若返回押金估值不可用（float-band 不完整）、材料不可用或平台明确拒绝，如实转告，不要换参数硬试。
-3. **进度**：`csforge_furnace_status({ operationId })` 只读轮询（`state`/`externalId`/`depositState`/`depositMessage`）；拿到平台合炉编号后也可用 `csforge_furnace_status({ furnaceId })` 核对押金。
-4. **押金**：
-   - 余额（`depositMethod=balance`）：平台按一次性授权从用户 EcoSteam 余额扣款；Agent 不计算、不承诺、不确认支付。
-   - 支付宝（`depositMethod=official`）：付款码生成后，用 `csforge_alipay_qr({ kind: 'furnace', id: 平台合炉编号 })` 取二维码图片，**交付给用户时必须同时说明金额（元，两位小数）、过期时间、合炉编号与当前状态，不能只发一张图**；只能发给用户本人，并提示“仅限本人扫码、过期需重新获取”。
-     - `amount`/`amountCents` 是**二维码订单报价（应付估算）**，不等于实际扣款；支付完成后如实说明“实际扣款以平台/支付宝账单为准”，用户告知实际金额时以用户/账单为准，不得把报价当已扣款。
-5. **结果不明**（超时/网络中断）：只查 `csforge_furnace_status`，**禁止换幂等键重复创建**。
-6. 交付时给出：operationId、平台合炉编号（若有）、10 件材料+用户售价、押金方式/估算、当前状态（creating/paying/paid/alipay/failed/unknown）、下一步。
-7. 限制：`csforge_furnace_create` **不创建** automatic/CD 定时合炉；预上架见下节；合炉不会由 Agent 开炉；`csforge_save_recipe` 只保存平台配方，与合炉创建无关。
-
-### 合炉先保存预上架
-
-用户要求先保存草稿、预上架或材料有 CD 时，使用 `csforge_prelist_create(kind=furnace)`，可暂不填售价；默认 kind=pack 保持打包行为。草稿只锁材料，不付款、不发布。
-
-后续用 `csforge_prelist_configure` 传 `kind=furnace`、十件固定 `prices`、标题、公开设置、`paymentMethod=balance|alipay` 和用户选定的开炉费设置。配置通过后再按用户指示调用 `csforge_prelist_arm`；确认重试保留原参数。用户明确要直接发布时才使用 `csforge_furnace_create`。
-
-批量合炉使用 `csforge_prelist_create_many` 后 `csforge_prelist_configure_many`，每炉提供自己的材料售价。一步创建并共用总价的 `csforge_prelist_create_configure_many` 用于打包。
+1. 要先保存草稿时，使用 `csforge_prelist_create`，再用 `csforge_prelist_list` 核对材料与草稿状态。类型及创建参数见 [创建工具](references/tools.md#csforge_prelist_create)。
+2. 用户给出发布信息后使用 `csforge_prelist_configure`。按 [配置工具](references/tools.md#csforge_prelist_configure) 填写对应类型字段；保存配置成功不表示已发布。
+3. 用户明确要求发布时使用 `csforge_prelist_arm`，按 [发布工具](references/tools.md#csforge_prelist_arm) 处理网站确认、冷却和付款状态。等待确认期间不改用其他接口绕过；超时先核对原任务。
+4. 用户明确要直接创建并发布合炉时，使用 `csforge_furnace_create`；字段及确认重试规则见 [合炉创建工具](references/tools.md#csforge_furnace_create)，尤其保留首次返回的固定价格与押金估算。
+5. 批量需求使用相应批量工具；可用范围见 [工具参考](references/tools.md#批量与精简工具)。逐项核对结果，部分失败不重建已成功的任务。
+6. 交付前区分草稿、已配置、待确认、排期、待付款、平台已上架和结果未知。提供任务编号、实际状态与下一步；二维码交付按 §11，不能只发图片或把报价当实际扣款。
+7. 取消或其他变更使用对应专用工具，先核对原任务状态；付款和平台结果不明时只查询，不换幂等键重复提交。
 
 ## 7. 工作流 D：用户发布后核对
 
@@ -254,7 +195,7 @@ metadata:
 | 标题报错 | 平台标题 ≤10 个字符；改为简短中文名 |
 | 材料被占用/不可用 | 重新 `csforge_inventory`；`locked`/`prelisted` 的资产不可再用 |
 | 预上架不存在/已处理 | 重新 `csforge_prelist_list`，不要重复创建 |
-| Agent arm 返回 403 | 通常表示网站未开启 Agent 确认，或请求未经审批；提示用户到网站开启确认并批准后重试，不要绕过 |
+| Agent arm 返回 403 | 按实际回执核对权限、密钥有效性和原审批请求；需要批准时等待本人批准，不更换接口绕过 |
 | 支付宝二维码未就绪 | 冷却中或后台生成中；用 `csforge_alipay_qr` 稍后再查，或让用户等待；已过期则重新获取/续期 |
 | 用户拒绝/关闭 Agent 审批 | 停止发布流程，转为用户在网站人工发布；不要反复提交 |
 | ECO 平台拒绝（如 ResultCode 1/2001） | 读 `message`，常见为令牌未绑定/参数/价格规则；不要盲目重试 |
