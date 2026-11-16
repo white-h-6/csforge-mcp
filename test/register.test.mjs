@@ -184,6 +184,7 @@ const inventoryCostResult = projectMcpResult({ content: [{ type: 'text', text: J
 assert.equal(JSON.parse(inventoryCostResult.text).assets[0].costCents, 399)
 assert.equal(JSON.parse(inventoryCostResult.text).assets[1].costCents, null)
 assert.ok(byName.csforge_preview_assets.parameters.properties.sets)
+assert.ok(byName.csforge_preview_assets.description.includes('1–25'))
 assert.ok(byName.csforge_alipay_qr.output.schema.properties.imagePath)
 assert.ok(tools.every((tool) => typeof tool.execute === 'function'))
 
