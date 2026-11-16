@@ -29,6 +29,7 @@
 | `csforge_inventory` | 只读 | 精简库存，默认只返回可用资产 |
 | `csforge_preview_assets` | 只读 | 一次预览 1–5 组候选十件材料 |
 | `csforge_prelist_list` | 只读 | 预上架/自动上架任务列表（精简） |
+| `csforge_prelist_brief` | 只读 | 预上架任务精简列表：每条带 `kind`，顶层带 `kinds` 分类型计数；不含 10 件材料明细 |
 | `csforge_prelist_simulate` | 只读 | 按当前市场价刷新预上架产物估值 |
 | `csforge_prelist_create` | 写 | 创建打包预上架草稿（锁定材料，不付款不提交） |
 | `csforge_furnace_create` | 写（敏感） | 创建合炉：10 件材料 + 用户售价/定价规则 + 押金方式；平台异步创建并扣/收押金 |
@@ -36,7 +37,7 @@
 | `csforge_prelist_configure` | 写 | 填写草稿标题/售价/可见性/押金方式 |
 | `csforge_prelist_arm` | 写 | 发起发布/开启自动上架（必须网站人工批准） |
 | `csforge_alipay_qr` | 只读 | 取回支付宝押金二维码 PNG（imagePath/金额/过期时间） |
-| `csforge_prelist_cancel` | 写 | 取消预上架/自动上架任务并释放材料 |
+| `csforge_prelist_cancel` | 写 | 取消预上架/自动上架任务并释放材料；`kind` 可省略，桥接层会自动在 pack/furnace 两处查找 |
 | `csforge_pack_list` | 只读 | 查看我的打包汰换（默认只列上架中 status=100） |
 | `csforge_pack_price` | 写（敏感） | 修改已上架打包售价；用户给价，需 expectedPrice/幂等键/网站批准 |
 | `csforge_pack_relist_preview` | 只读 | 核对原配置与重新上架进度 |

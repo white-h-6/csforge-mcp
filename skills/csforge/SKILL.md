@@ -117,7 +117,7 @@ metadata:
 - **Agent 不得**：替用户决定售价/押金/公开私密；替用户支付/扣款；开启自动上架后绕过用户审批；替用户确认支付结果。
 - **改价**：`csforge_pack_price` 只修改用户已上架的自有打包，新售价必须由用户明确给出；首次可能返回 202+approvalId，批准后必须用相同 id/price/expectedPrice/idempotencyKey 重试。不要改他人/非上架中/有待处理改价或下架的打包。
 - **押金/付款不用 Agent 管**：合炉押金 = 最高产物估价 × 1.05，打包汰换押金 = 最高产物估价 × 1.4，默认余额；实际金额以平台报价为准，Agent 不计算、不承诺、不付款，用户自己支付。
-- **预上架草稿只支持打包汰换（pack）**；合炉用 `csforge_furnace_create` 直接创建，不要绕道 `plans/:id/create` 或把合炉伪装成预上架草稿。
+- **预上架草稿支持打包汰换（pack）和合炉（furnace）两种**：`csforge_prelist_create` 传 `kind` 区分；`csforge_prelist_brief` 的每条任务都带 `kind`，`phase=prelist` 是两种草稿的合并视图，核对时务必按 `kind` 区分。直接发布合炉也可用 `csforge_furnace_create`，不要绕道 `plans/:id/create` 或把合炉伪装成打包草稿。
 - **写操作 202**：返回 `approvalRequired=true` + `approvalId` 时，告诉用户去网站“Agent 接入”批准；重试必须使用**完全相同**的方法/路径/JSON 参数与 `approvalId`，`idempotencyKey` 不变。
 - **结果不明**（超时、网络中断、响应异常）：先查 `csforge_prelist_list` / `csforge_furnace_status`，**禁止换幂等键重试**，避免重复创建、重复付款。
 - 不要输出/记录令牌（`csf_...`）、平台票据或账号隐私字段到聊天、文件或仓库。
