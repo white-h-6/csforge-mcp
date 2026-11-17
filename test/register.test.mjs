@@ -47,11 +47,9 @@ assert.deepEqual(
     'csforge_find_skins',
     'csforge_analyze_recipe',
     'csforge_inventory',
-    'csforge_prelist_create',
     'csforge_furnace_create',
     'csforge_furnace_status',
     'csforge_prelist_simulate',
-    'csforge_prelist_configure',
     'csforge_prelist_arm',
     'csforge_alipay_qr',
     'csforge_prelist_cancel',
@@ -78,7 +76,7 @@ assert.ok(byName.csforge_prelist_create_configure_many.parameters.properties.con
 assert.ok(byName.csforge_prelist_cancel_many.parameters.properties.ids)
 assert.ok(byName.csforge_preview_many.parameters.properties.targetSkinId)
 assert.ok(byName.csforge_inventory_summary.parameters.properties.includeIds)
-for (const name of ['csforge_inventory', 'csforge_inventory_summary', 'csforge_prelist_create', 'csforge_furnace_create']) {
+for (const name of ['csforge_inventory', 'csforge_inventory_summary', 'csforge_furnace_create']) {
   assert.equal(byName[name].parameters.properties.steamId.type, 'string')
   assert.ok(!byName[name].parameters.required?.includes('steamId'))
 }
@@ -109,7 +107,7 @@ assert.equal(
 )
 assert.ok(byName.csforge_analyze_recipe.parameters.properties.timeoutMs)
 assert.ok(byName.csforge_open_page.parameters.properties.page.enum.includes('prelist'))
-assert.ok(byName.csforge_prelist_create.parameters.properties.assetIds)
+assert.ok(byName.csforge_prelist_create_many.parameters.properties.items.items.properties.assetIds)
 assert.ok(byName.csforge_furnace_create.parameters.properties.prices)
 assert.equal(byName.csforge_furnace_create.parameters.properties.prices.oneOf.length, 2)
 assert.equal('multiplier' in byName.csforge_furnace_create.parameters.properties, false)
@@ -141,7 +139,6 @@ assert.deepEqual(retry.prices, pricedArgs.prices)
 assert.equal(normalizePrelistCreate({ ...draftArgs, ...retryArgs }).steamId, accountId)
 assert.equal(normalizePrelistCreate({ ...draftArgs, kind: 'furnace' }).kind, 'furnace')
 assert.throws(() => normalizePrelistCreate({ ...draftArgs, kind: 'unknown' }), /kind must be/)
-assert.ok(byName.csforge_prelist_create.parameters.properties.kind.enum.includes('furnace'))
 assert.ok(byName.csforge_prelist_create_many.parameters.properties.items.items.properties.kind.enum.includes('furnace'))
 assert.ok(byName.csforge_prelist_configure_many.parameters.properties.items.items.properties.prices)
 const furnaceConfig = {
@@ -167,15 +164,12 @@ await assert.rejects(byName.csforge_furnace_create.execute({
 }), /returned fixed prices array/)
 assert.ok(byName.csforge_furnace_create.parameters.properties.estimatedDepositCents)
 assert.ok(byName.csforge_furnace_status.parameters.properties.operationId)
-assert.ok(byName.csforge_prelist_configure.parameters.properties.paymentMethod)
 assert.ok(byName.csforge_prelist_arm.parameters.properties.id)
 assert.ok(byName.csforge_alipay_qr.parameters.properties.kind)
 assert.ok(byName.csforge_inventory.parameters.properties.availableOnly)
 assert.ok(byName.csforge_inventory.description.includes('costCents'))
 for (const field of ['BasePrice', 'costSource', 'null']) assert.ok(byName.csforge_inventory.description.includes(field))
 for (const field of ['steamId', 'accountsError', '审批重试']) assert.ok(byName.csforge_whoami.description.includes(field))
-for (const field of ['pack', 'furnace', 'csforge_prelist_configure', 'csforge_prelist_arm']) assert.ok(byName.csforge_prelist_create.description.includes(field))
-for (const field of ['sellPrice', 'prices', 'paymentMethod']) assert.ok(byName.csforge_prelist_configure.description.includes(field))
 for (const field of ['scheduledAt', '202', '原任务']) assert.ok(byName.csforge_prelist_arm.description.includes(field))
 const inventoryCostResult = projectMcpResult({ content: [{ type: 'text', text: JSON.stringify({ assets: [{ assetId: 'a', costCents: 399, costSource: 'inventory' }, { assetId: 'b', costCents: null, costSource: null }] }) }] })
 assert.equal(JSON.parse(inventoryCostResult.text).assets[0].costCents, 399)
@@ -227,7 +221,7 @@ const legacyCtx = {
   effect(factory) { disposers.push(factory()) },
 }
 await apply(legacyCtx, { ...config, legacyTools: true })
-for (const legacyName of ['csforge_prelist_list', 'csforge_preview_assets']) {
+for (const legacyName of ['csforge_prelist_create', 'csforge_prelist_list', 'csforge_prelist_configure', 'csforge_preview_assets']) {
   assert.ok(legacyTools.some((tool) => tool.name === legacyName), `${legacyName} should be opt-in`)
 }
 for (const dispose of disposers.reverse()) dispose()

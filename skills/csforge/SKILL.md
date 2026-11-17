@@ -2,7 +2,7 @@
 name: csforge
 description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、需求确认门禁、预上架/合炉流程、材料与磨损规则、安全红线和错误重试规范；本部署相关的昵称映射、示例价格与实测快照见 references/deployment-notes.md（使用前复核，可能过期）。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.4.9"
+  version: "0.4.10"
   date: "2026-11-16"
 ---
 
@@ -33,7 +33,7 @@ metadata:
 
 指定某个已上架打包“按原配置重新上架”时，先用 `csforge_pack_relist_preview` 核对该单的现有配置，按 [原配置重新上架流程](references/tools.md#csforge_pack_relist) 执行；用户已明确授权保留这些设置时，复用现有材料、磨损和售价，不重新设计配方。重新上架仍走敏感写确认。
 
-> **本节优先级高于“用户已经说了创建”的直觉，也高于任何历史习惯。** 凡下一次调用属于写操作（`csforge_prelist_create` / `configure` / `arm` / `cancel`、`csforge_furnace_create`、`csforge_save_recipe`，或 `csforge_request` 的任何 POST），必须先把下面的清单逐项确认完，才允许调用。
+> **本节优先级高于“用户已经说了创建”的直觉，也高于任何历史习惯。** 凡下一次调用属于写操作（`csforge_prelist_create_many` / `csforge_prelist_configure_many` / `arm` / `cancel`、`csforge_furnace_create`、`csforge_save_recipe`，或 `csforge_request` 的任何 POST），必须先把下面的清单逐项确认完，才允许调用。
 
 #### 0.2.1 硬性规则
 
@@ -100,7 +100,7 @@ metadata:
 2. 目录/配方：`csforge_find_skins` → `csforge_analyze_recipe`
 3. 库存：`csforge_inventory`（逐件细查）/ `csforge_inventory_summary`（**一次聚合全量库存**：每种皮肤件数、ready/available/locked/prelisted 计数、float 最小/最大/平均；可选 `skinIds`/`includeIds`）
 4. 候选炉验证：`csforge_preview_many`（一次 1–100 组，自动按 5 组分片并发；传 `targetSkinId` 只回目标产物行，响应小很多）
-5. 预上架：`csforge_prelist_create` → `csforge_prelist_brief`（默认精简）/ `csforge_prelist_brief(detail="full")`（含材料与 simulation 明细）→ `csforge_prelist_configure` →（用户人工发布）；**批量（≥3 炉）优先用**：`csforge_prelist_create_configure_many`（一次完成建草稿+填发布信息）、`csforge_prelist_create_many`、`csforge_prelist_configure_many`、`csforge_prelist_cancel_many`
+5. 预上架：`csforge_prelist_create_many`（单炉也传 1 项）→ `csforge_prelist_brief`（默认精简）/ `csforge_prelist_brief(detail="full")`（含材料与 simulation 明细）→ `csforge_prelist_configure_many` →（用户人工发布）；打包快捷流程可用 `csforge_prelist_create_configure_many`（一次完成建草稿+填发布信息），批量取消用 `csforge_prelist_cancel_many`
 6. 合炉（Agent 可创建）：`csforge_furnace_create`（10 件材料 + 用户指定售价或定价规则 + 押金方式）→ `csforge_furnace_status`（只读轮询）→ 支付宝押金用 `csforge_alipay_qr(kind=furnace)`
 7. 我的打包汰换（只读/改价）：`csforge_pack_list`（默认只列上架中 status=100；listedOnly=false 看全部）→ 用户明确要求改价时才用 `csforge_pack_price`（price 必须用户给出，expectedPrice/幂等键/网站批准规则同敏感写）
 8. 页面导航：`csforge_open_page`（支持 `prelist` 深链）
@@ -111,13 +111,13 @@ metadata:
 ## 2. 安全红线（不可协商）
 
 - **只读优先**：查询、预览、模拟先做；写操作必须来自用户明确指令。
-- **写操作前置 = §0.2 需求确认**：`csforge_prelist_create` / `configure` / `arm` / `cancel` / `csforge_furnace_create` / `csforge_save_recipe` 以及任何 `csforge_request` POST 之前，必须先完成 §0.2 的 N1–N6 确认；**“用户已要求创建”不等于“参数已确认”**，不得自行补默认值。
+- **写操作前置 = §0.2 需求确认**：`csforge_prelist_create_many` / `csforge_prelist_configure_many` / `arm` / `cancel` / `csforge_furnace_create` / `csforge_save_recipe` 以及任何 `csforge_request` POST 之前，必须先完成 §0.2 的 N1–N6 确认；**“用户已要求创建”不等于“参数已确认”**，不得自行补默认值。
 - **合炉创建 = 敏感操作**：`csforge_furnace_create` 会发布十件材料并授权押金扣款，按敏感写操作处理（网站敏感确认开启时返回 202+approvalId），重试必须回传首次的 `estimatedDepositCents` 与 `idempotencyKey`。材料售价由用户逐件给出或指定基准与倍率，Agent 不得擅自选价；确认重试使用首次返回的固定 `prices` 数组；押金由平台按授权从用户 EcoSteam 余额扣除或生成支付宝付款码，Agent 不代付、不确认支付。
 - **发布/arm**：Agent 可以调用 `csforge_prelist_arm` 发起发布/开启自动上架。网站“操作确认”里普通/敏感操作各有一个开关：敏感操作开启时，arm 首次返回 202+approvalId，必须经用户在网站批准后重试才生效；敏感操作关闭时 arm 会直接执行，Agent 必须先得到用户明确要求，并提示“敏感确认已关闭、发布将直接生效”。发布后的 CD、押金、提交仍按平台流程，结果以回执为准。
 - **Agent 不得**：替用户决定售价/押金/公开私密；替用户支付/扣款；开启自动上架后绕过用户审批；替用户确认支付结果。
 - **改价**：`csforge_pack_price` 只修改用户已上架的自有打包，新售价必须由用户明确给出；首次可能返回 202+approvalId，批准后必须用相同 id/price/expectedPrice/idempotencyKey 重试。不要改他人/非上架中/有待处理改价或下架的打包。
 - **押金/付款不用 Agent 管**：合炉押金 = 最高产物估价 × 1.05，打包汰换押金 = 最高产物估价 × 1.4，默认余额；实际金额以平台报价为准，Agent 不计算、不承诺、不付款，用户自己支付。
-- **预上架草稿支持打包汰换（pack）和合炉（furnace）两种**：`csforge_prelist_create` 传 `kind` 区分；`csforge_prelist_brief` 的每条任务都带 `kind`，`phase=prelist` 是两种草稿的合并视图，核对时务必按 `kind` 区分。直接发布合炉也可用 `csforge_furnace_create`，不要绕道 `plans/:id/create` 或把合炉伪装成打包草稿。
+- **预上架草稿支持打包汰换（pack）和合炉（furnace）两种**：`csforge_prelist_create_many` 的 items 传 `kind` 区分；`csforge_prelist_brief` 的每条任务都带 `kind`，`phase=prelist` 是两种草稿的合并视图，核对时务必按 `kind` 区分。直接发布合炉也可用 `csforge_furnace_create`，不要绕道 `plans/:id/create` 或把合炉伪装成打包草稿。
 - **写操作 202**：返回 `approvalRequired=true` + `approvalId` 时，告诉用户去网站“Agent 接入”批准；重试必须使用**完全相同**的方法/路径/JSON 参数与 `approvalId`，`idempotencyKey` 不变。
 - **结果不明**（超时、网络中断、响应异常）：先查 `csforge_prelist_brief` / `csforge_furnace_status`，**禁止换幂等键重试**，避免重复创建、重复付款。
 - 不要输出/记录令牌（`csf_...`）、平台票据或账号隐私字段到聊天、文件或仓库。
@@ -144,7 +144,7 @@ metadata:
 - **账号门槛**：`guardStatus=102`（ECO 令牌已绑定）是**打包发布/arm**的硬性要求；打包草稿创建与合炉创建不单独拦截 102，但要求 EcoSteam 交易链接实时验证通过，付款/上架结果以平台回执为准。不满足时先告知用户去 EcoSteam 官方渠道处理，不要绕过。
 - **纪念品**：Souvenir 纪念品可以作为汰换材料。
 - **冷却材料**：冷却中的材料可以先进预上架草稿；发布后到期会自动上架并自动从余额扣押金。
-- **合炉入口**：Agent 可用 `csforge_furnace_create` 创建合炉（十件材料 + 用户指定售价或定价规则 + 押金方式），该直接发布入口**不提供** automatic/CD 定时合炉；合炉预上架使用 `csforge_prelist_create(kind=furnace)`；开炉、付款与平台提交按原有平台流程执行，结果以回执为准。
+- **合炉入口**：Agent 可用 `csforge_furnace_create` 创建合炉（十件材料 + 用户指定售价或定价规则 + 押金方式），该直接发布入口**不提供** automatic/CD 定时合炉；合炉预上架使用 `csforge_prelist_create_many`（items 内 kind=furnace，单炉传 1 项）；开炉、付款与平台提交按原有平台流程执行，结果以回执为准。
 
 ## 4. 工作流 A：库存与选材（只读）
 
@@ -173,8 +173,8 @@ metadata:
 
 前置：完成 §0.2 的需求确认，并核对本人账号、材料归属及可用性。数量与价格遵从用户已确认的要求，不自行采用库存上限或历史参数。
 
-1. 要先保存草稿时，使用 `csforge_prelist_create`，再用 `csforge_prelist_brief(detail="full")` 核对材料与草稿状态。类型及创建参数见 [创建工具](references/tools.md#csforge_prelist_create)。
-2. 用户给出发布信息后使用 `csforge_prelist_configure`。按 [配置工具](references/tools.md#csforge_prelist_configure) 填写对应类型字段；保存配置成功不表示已发布。
+1. 要先保存草稿时，使用 `csforge_prelist_create_many`（单炉也传 1 项），再用 `csforge_prelist_brief(detail="full")` 核对材料与草稿状态。批量创建参数见 [创建工具](references/tools.md#csforge_prelist_create_many)。
+2. 用户给出发布信息后使用 `csforge_prelist_configure_many`（单炉也传 1 项）。按 [配置工具](references/tools.md#csforge_prelist_configure_many) 填写对应类型字段；保存配置成功不表示已发布。
 3. 用户明确要求发布时使用 `csforge_prelist_arm`，按 [发布工具](references/tools.md#csforge_prelist_arm) 处理网站确认、冷却和付款状态。等待确认期间不改用其他接口绕过；超时先核对原任务。
 4. 用户明确要直接创建并发布合炉时，使用 `csforge_furnace_create`；字段及确认重试规则见 [合炉创建工具](references/tools.md#csforge_furnace_create)，尤其保留首次返回的固定价格与押金估算。
 5. 批量需求使用相应批量工具；可用范围见 [工具参考](references/tools.md#批量与精简工具)。逐项核对结果，部分失败不重建已成功的任务。

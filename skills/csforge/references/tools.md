@@ -29,10 +29,8 @@
 | `csforge_inventory` | 只读 | 精简库存，默认只返回可用资产 |
 | `csforge_prelist_brief` | 只读 | 预上架任务统一列表：默认精简，`detail=full` 返回材料与 simulation 明细 |
 | `csforge_prelist_simulate` | 只读 | 按当前市场价刷新预上架产物估值 |
-| `csforge_prelist_create` | 写 | 创建打包预上架草稿（锁定材料，不付款不提交） |
 | `csforge_furnace_create` | 写（敏感） | 创建合炉：10 件材料 + 用户售价/定价规则 + 押金方式；平台异步创建并扣/收押金 |
 | `csforge_furnace_status` | 只读 | 查询合炉创建/押金进度（operationId 或平台合炉编号） |
-| `csforge_prelist_configure` | 写 | 填写草稿标题/售价/可见性/押金方式 |
 | `csforge_prelist_arm` | 写 | 发起发布/开启自动上架（必须网站人工批准） |
 | `csforge_alipay_qr` | 只读 | 取回支付宝押金二维码 PNG（imagePath/金额/过期时间） |
 | `csforge_prelist_cancel` | 写 | 取消预上架/自动上架任务并释放材料；`kind` 可省略，桥接层会自动在 pack/furnace 两处查找 |
@@ -44,7 +42,7 @@
 | `csforge_open_page` | 只读（导航） | 让在线网页切换页面 |
 | `csforge_request` | 视方法 | 兜底调用 `/api/` 业务接口；账户/管理员/令牌接口禁止 |
 
-> 兼容性：`csforge_preview_assets` 已合并到 `csforge_preview_many`；`csforge_prelist_list` 已合并到 `csforge_prelist_brief(detail:"full")`。本地 DSH 适配器默认不注册旧名；确需旧名时在 profile 配置 `legacyTools: true`。
+> 兼容性：`csforge_preview_assets` 已合并到 `csforge_preview_many`；`csforge_prelist_list` 已合并到 `csforge_prelist_brief(detail:"full")`；单条 `csforge_prelist_create` / `csforge_prelist_configure` 默认由 `csforge_prelist_create_many` / `csforge_prelist_configure_many` 传 1 项覆盖。本地 DSH 适配器默认不注册这四个旧名；确需旧名时在 profile 配置 `legacyTools: true`。
 
 ## 常用参数与返回
 
@@ -165,7 +163,7 @@
 两者都不传时返回最近 10 条合炉操作。只读：不创建、不付款、不提交。
 返回：`operation`（事务状态/押金状态）或 `operations` 列表，以及可选 `deposit`（金额、余额、支付方式、是否可付、是否已关闭）。
 
-### csforge_prelist_create
+### csforge_prelist_create（legacy，默认不注册；单条用 create_many 传 1 项）
 参数：
 ```json
 {
@@ -181,7 +179,7 @@
 行为：两种类型统一采用 create → configure → arm；创建时均无需填售价或押金。支持 `kind=pack|furnace`，服务端强制 `prelist=true`、`armed=false`、`configured=false`；材料立即锁定并从库存隐藏；**不付款、不提交、默认不开启自动上架**。发布需另调 `csforge_prelist_arm`；返回 202 时等待网站批准，草稿创建不表示已发布。
 返回：`{ status, steamId, idempotencyKey, operationId, state, externalId?, message }`（202 时含 approvalRequired/approvalId 与提示）。确认重试保留返回的 `steamId` 和原幂等键。
 
-### csforge_prelist_configure
+### csforge_prelist_configure（legacy，默认不注册；单条用 configure_many 传 1 项）
 
 只保存本人未开启草稿的发布信息，不发布、不扣款。两种类型共用此工具：
 
