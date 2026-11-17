@@ -9,7 +9,7 @@
 | 本地 PowerShell 脚本 | 0.75–0.95 s / 次（含进程启动），全程 6–9 s | **不是瓶颈**（占整场 <0.5%） |
 | 25 炉创建 + 配置 | 50 次串行工具调用 / 轮 | 主因之一：往返次数多 |
 | 库存摸底 | 200 条截断 + 一次 48KB 原始库存，多次大响应 | 主因之一：大响应 token 处理 |
-| `prelist_list` 核对 | 25 炉 × 10 件材料明细 ≈ 30–40 KB | 主因之一 |
+| `prelist_brief(detail="full")` 核对 | 25 炉 × 10 件材料明细 ≈ 30–40 KB | 主因之一 |
 | 3 轮重建（需求两次变更） | 约 167 次写调用 | **最大时间来源（约 2/3）** |
 
 ## 2. 已落地的插件侧优化（v0.3.0，本仓库）
@@ -55,10 +55,10 @@
 |---|---|---|
 | 25 炉 = 25 次 create + 25 次 configure | 客户端批量工具 + 建后自动 configure（`csforge_prelist_create_configure_many`） | 50 次 → 1 次 | 已实现（桥接层） |
 | 批量取消逐个调用 | 客户端批量工具 `csforge_prelist_cancel_many`（内部并发） | 25 → 1 | 已实现（桥接层） |
-| `prelist_list` 返回 10 件材料明细 | `includeMaterials=false`（服务端投影） | 响应缩 ~10 倍 | 已实现（站点） |
+| `prelist_brief(detail="full")` 返回 10 件材料明细 | `includeMaterials=false`（服务端投影） | 响应缩 ~10 倍 | 已实现（站点） |
 | 库存 200 条上限、无游标 | 新工具 `csforge_inventory_summary`（服务端按 skinId 聚合） | 6 次大响应 → 1 次小响应 | 已实现（站点） |
 | 写后库存快照变化导致预览失败 | 桥接层对瞬时错误自动退避重试；`inventoryVersion` 仍建议后续加 | 消除大部分手工重试 | 部分实现 |
-| `preview_assets` 上限 5 组、回全部产物 | 上限 25 组 + `targetSkinId` 过滤 | 6 次大响应 → 1 次小响应 | 已实现（站点） |
+| `preview_many` 原批处理上限 5 组、回全部产物 | 上限 25 组 + `targetSkinId` 过滤 | 6 次大响应 → 1 次小响应 | 已实现（站点） |
 | 任务状态需轮询 list | SSE/Webhook 推送任务状态 | 省轮询 | 后续建议 |
 | 预上架列表分不清打包/合炉类型 | `prelist_brief` 每条任务返回 `kind`，顶层返回 `kinds` 分类型计数 | 消除“同一任务在两类列表间跳”的误解 | 已实现（0.3.10） |
 | 预上架取消需猜 kind，猜错返回 404 | 取消省略 kind 时自动先试 pack、再试 furnace；响应返回实际 kind，审批重试用同一 kind | 取消不再因类型判断失败 | 已实现（服务端 36733eb + 0.3.10） |

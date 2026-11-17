@@ -2,7 +2,7 @@
 name: csforge
 description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、需求确认门禁、预上架/合炉流程、材料与磨损规则、安全红线和错误重试规范；本部署相关的昵称映射、示例价格与实测快照见 references/deployment-notes.md（使用前复核，可能过期）。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.4.8"
+  version: "0.4.9"
   date: "2026-11-16"
 ---
 
@@ -37,7 +37,7 @@ metadata:
 
 #### 0.2.1 硬性规则
 
-1. **先问再做**：确认完成前只允许只读动作——① `csforge_whoami` ② 名称/目录查询 `csforge_find_skins` ③ 现有预上架状态 `csforge_prelist_list` ④ **一次有界的库存计数查询**（仅用于把问询选项写成真实数字，例如“可上架某材料 N 件”）。**不得**在确认前跑完整 `csforge_analyze_recipe` 配方搜索、`csforge_preview_assets` 组炉，更不得写脚本/读站点源码“顺便把方案做出来”。
+1. **先问再做**：确认完成前只允许只读动作——① `csforge_whoami` ② 名称/目录查询 `csforge_find_skins` ③ 现有预上架状态 `csforge_prelist_brief` ④ **一次有界的库存计数查询**（仅用于把问询选项写成真实数字，例如“可上架某材料 N 件”）。**不得**在确认前跑完整 `csforge_analyze_recipe` 配方搜索、`csforge_preview_many` 组炉，更不得写脚本/读站点源码“顺便把方案做出来”。
 2. **一句话不算确认**：“创建多个”“帮我上架”“按上次的来”“随便”都不是参数确认。数量、目标磨损、材料组成、交付步骤必须落成具体值，并由用户在当前会话明确回复。
 3. **历史只是建议**：历史预上架/配方只能作为推荐选项呈现，**不得**当默认参数执行。用户说“按上次的来”时，把上次每项参数列出来请其确认。
 
@@ -90,7 +90,7 @@ metadata:
 
 1. N1–N6 是否都有明确值？2. 数量是否与用户说的一致（不是自行取上限）？3. 材料售价/公开私密/押金方式是否用户给值？4. 交付步骤（草稿 / 配置 / arm / 合炉）是否用户明确？5. 是否已回显参数并得到“就按这个”？6. 是否准备好 202 审批的重试参数（idempotencyKey、approvalId、estimatedDepositCents）？
 
-确认完成后，才允许调用 `csforge_analyze_recipe` / `csforge_inventory` 选材 / `csforge_preview_assets` 进入分析与选材。
+确认完成后，才允许调用 `csforge_analyze_recipe` / `csforge_inventory` 选材 / `csforge_preview_many` 进入分析与选材。
 
 ## 1. 工具速查
 
@@ -99,8 +99,8 @@ metadata:
 1. 身份：`csforge_whoami`
 2. 目录/配方：`csforge_find_skins` → `csforge_analyze_recipe`
 3. 库存：`csforge_inventory`（逐件细查）/ `csforge_inventory_summary`（**一次聚合全量库存**：每种皮肤件数、ready/available/locked/prelisted 计数、float 最小/最大/平均；可选 `skinIds`/`includeIds`）
-4. 候选炉验证：`csforge_preview_assets`（一次 1–5 组）/ `csforge_preview_many`（一次 1–100 组，自动按 5 组分片并发；传 `targetSkinId` 只回目标产物行，响应小很多）
-5. 预上架：`csforge_prelist_create` → `csforge_prelist_list`（含材料明细，较大）/ `csforge_prelist_brief`（精简状态，无 10 件材料）→ `csforge_prelist_configure` →（用户人工发布）；**批量（≥3 炉）优先用**：`csforge_prelist_create_configure_many`（一次完成建草稿+填发布信息）、`csforge_prelist_create_many`、`csforge_prelist_configure_many`、`csforge_prelist_cancel_many`
+4. 候选炉验证：`csforge_preview_many`（一次 1–100 组，自动按 5 组分片并发；传 `targetSkinId` 只回目标产物行，响应小很多）
+5. 预上架：`csforge_prelist_create` → `csforge_prelist_brief`（默认精简）/ `csforge_prelist_brief(detail="full")`（含材料与 simulation 明细）→ `csforge_prelist_configure` →（用户人工发布）；**批量（≥3 炉）优先用**：`csforge_prelist_create_configure_many`（一次完成建草稿+填发布信息）、`csforge_prelist_create_many`、`csforge_prelist_configure_many`、`csforge_prelist_cancel_many`
 6. 合炉（Agent 可创建）：`csforge_furnace_create`（10 件材料 + 用户指定售价或定价规则 + 押金方式）→ `csforge_furnace_status`（只读轮询）→ 支付宝押金用 `csforge_alipay_qr(kind=furnace)`
 7. 我的打包汰换（只读/改价）：`csforge_pack_list`（默认只列上架中 status=100；listedOnly=false 看全部）→ 用户明确要求改价时才用 `csforge_pack_price`（price 必须用户给出，expectedPrice/幂等键/网站批准规则同敏感写）
 8. 页面导航：`csforge_open_page`（支持 `prelist` 深链）
@@ -119,7 +119,7 @@ metadata:
 - **押金/付款不用 Agent 管**：合炉押金 = 最高产物估价 × 1.05，打包汰换押金 = 最高产物估价 × 1.4，默认余额；实际金额以平台报价为准，Agent 不计算、不承诺、不付款，用户自己支付。
 - **预上架草稿支持打包汰换（pack）和合炉（furnace）两种**：`csforge_prelist_create` 传 `kind` 区分；`csforge_prelist_brief` 的每条任务都带 `kind`，`phase=prelist` 是两种草稿的合并视图，核对时务必按 `kind` 区分。直接发布合炉也可用 `csforge_furnace_create`，不要绕道 `plans/:id/create` 或把合炉伪装成打包草稿。
 - **写操作 202**：返回 `approvalRequired=true` + `approvalId` 时，告诉用户去网站“Agent 接入”批准；重试必须使用**完全相同**的方法/路径/JSON 参数与 `approvalId`，`idempotencyKey` 不变。
-- **结果不明**（超时、网络中断、响应异常）：先查 `csforge_prelist_list` / `csforge_furnace_status`，**禁止换幂等键重试**，避免重复创建、重复付款。
+- **结果不明**（超时、网络中断、响应异常）：先查 `csforge_prelist_brief` / `csforge_furnace_status`，**禁止换幂等键重试**，避免重复创建、重复付款。
 - 不要输出/记录令牌（`csf_...`）、平台票据或账号隐私字段到聊天、文件或仓库。
 - 创建草稿会立即锁定并隐藏材料；创建前必须得到用户确认，取消会释放材料但可能影响用户其他操作。
 
@@ -155,10 +155,10 @@ metadata:
 ## 5. 工作流 B：找炉 / 卡磨损（只读优先）
 
 1. 开始前必须先完成 §0.2 需求确认；确认后明确四要素：目标饰品（skinId/名称）、目标磨损（FN/MW/FT/WW/BS）、材料组成、硬约束（只用可上架材料、只要入档或贴边、成本上限等）。
-2. 用 `csforge_preview_assets` 或 `csforge_preview_many`（1–100 组，传 `targetSkinId` 只回目标产物）验证候选，以站点返回的 `outcomes[].float/wear/probability/price` 为准。
+2. 用 `csforge_preview_many`（1–100 组，传 `targetSkinId` 只回目标产物）验证候选，以站点返回的 `outcomes[].float/wear/probability/price` 为准。
 3. 磨损规则（站点 `normalized-2025-10`）：先对每件材料按自身区间归一化 `(float-min)/(max-min)`，取平均后映射到目标区间 `目标float = 目标min + 平均 × (目标max - 目标min)`。
 4. 磨损档位边界：按目标档位取区间：FN <0.07；MW 0.07–<0.15；FT 0.15–<0.38；WW 0.38–<0.45；BS 0.45–1.00；再与目标皮肤 maxFloat 求交。B 方向要求产物尽量接近所选档位上限但仍属于该档（如 MW 接近但严格小于 0.15，FN 接近但严格小于 0.07）；C 方向接近该档下限。
-5. 需要精确搜索时：先算候选组合的平均归一化磨损，再逐组用 `csforge_preview_assets` 复核；不要只靠本地公式就创建草稿。
+5. 需要精确搜索时：先算候选组合的平均归一化磨损，再逐组用 `csforge_preview_many` 复核；不要只靠本地公式就创建草稿。
 6. **磨损目标策略必须服从 N2**：
    - **A 只要入档**：达到目标档位即可，档位内高低不限，按成本/库存优化。
    - **B 入档后尽量偏高**：在所选档位内尽量接近该档上限；例如 FN 约 0.0699、MW 约 0.1499、FT 约 0.3799、WW 约 0.4499，BS 接近该皮肤可达上限。优先消耗高 float 材料、保留低 float 库存。不是产物越低越好。
@@ -173,7 +173,7 @@ metadata:
 
 前置：完成 §0.2 的需求确认，并核对本人账号、材料归属及可用性。数量与价格遵从用户已确认的要求，不自行采用库存上限或历史参数。
 
-1. 要先保存草稿时，使用 `csforge_prelist_create`，再用 `csforge_prelist_list` 核对材料与草稿状态。类型及创建参数见 [创建工具](references/tools.md#csforge_prelist_create)。
+1. 要先保存草稿时，使用 `csforge_prelist_create`，再用 `csforge_prelist_brief(detail="full")` 核对材料与草稿状态。类型及创建参数见 [创建工具](references/tools.md#csforge_prelist_create)。
 2. 用户给出发布信息后使用 `csforge_prelist_configure`。按 [配置工具](references/tools.md#csforge_prelist_configure) 填写对应类型字段；保存配置成功不表示已发布。
 3. 用户明确要求发布时使用 `csforge_prelist_arm`，按 [发布工具](references/tools.md#csforge_prelist_arm) 处理网站确认、冷却和付款状态。等待确认期间不改用其他接口绕过；超时先核对原任务。
 4. 用户明确要直接创建并发布合炉时，使用 `csforge_furnace_create`；字段及确认重试规则见 [合炉创建工具](references/tools.md#csforge_furnace_create)，尤其保留首次返回的固定价格与押金估算。
@@ -183,7 +183,7 @@ metadata:
 
 ## 7. 工作流 D：用户发布后核对
 
-- 用 `csforge_prelist_list`（view=active/history, phase=all）核对状态；勿把草稿当作已发布。
+- 用 `csforge_prelist_brief`（view=active/history, phase=all）核对状态；勿把草稿当作已发布。
 - 消息提醒可能因瞬时网络失败显示“暂时无法更新”，网站会自动重试；如需排查可看 API 日志（`消息提醒核对完成/较慢/失败：Xms`）。
 - 结果未知时只查询、不重试写操作。
 
@@ -194,7 +194,7 @@ metadata:
 | `analyze_recipe` 超时 | 传 `timeoutMs`（≤180000）重试；或减少 `mainMaterialCount`、`sortBy=probability`；仍失败则说明服务繁忙，别反复轰炸 |
 | 标题报错 | 平台标题 ≤10 个字符；改为简短中文名 |
 | 材料被占用/不可用 | 重新 `csforge_inventory`；`locked`/`prelisted` 的资产不可再用 |
-| 预上架不存在/已处理 | 重新 `csforge_prelist_list`，不要重复创建 |
+| 预上架不存在/已处理 | 重新 `csforge_prelist_brief`，不要重复创建 |
 | Agent arm 返回 403 | 按实际回执核对权限、密钥有效性和原审批请求；需要批准时等待本人批准，不更换接口绕过 |
 | 支付宝二维码未就绪 | 冷却中或后台生成中；用 `csforge_alipay_qr` 稍后再查，或让用户等待；已过期则重新获取/续期 |
 | 用户拒绝/关闭 Agent 审批 | 停止发布流程，转为用户在网站人工发布；不要反复提交 |
@@ -249,7 +249,7 @@ node scripts/find-extreme-float.mjs --input plan.json
 
 使用规则：
 
-1. 脚本只生成候选，**不得**直接创建预上架草稿/合炉；创建前必须用 `csforge_preview_assets` 复核选中的 1–5 组。
+1. 脚本只生成候选，**不得**直接创建预上架草稿/合炉；创建前必须用 `csforge_preview_many` 复核选中的 1–5 组。
 2. 脚本不读价格、不计算概率/期望收益、不联网，也不能代替平台回执；这些仍用 preview/simulate。
 3. 无法满足边界时脚本返回 `infeasible` 和最接近结果，需向用户报告差距，不要硬做或改口径。
 4. 极端贴边属于目标而非保证：报告预测 float 与边界的实际余量，最终以站点 preview 与平台结果为准。

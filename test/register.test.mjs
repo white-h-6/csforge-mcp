@@ -49,7 +49,6 @@ assert.deepEqual(
     'csforge_inventory',
     'csforge_prelist_create',
     'csforge_furnace_create',
-    'csforge_prelist_list',
     'csforge_furnace_status',
     'csforge_prelist_simulate',
     'csforge_prelist_configure',
@@ -60,7 +59,6 @@ assert.deepEqual(
     'csforge_pack_relist_preview',
     'csforge_pack_relist',
     'csforge_pack_price',
-    'csforge_preview_assets',
     'csforge_save_recipe',
     'csforge_request',
     'csforge_open_page',
@@ -93,7 +91,6 @@ assert.ok(byName.csforge_pack_relist.parameters.properties.configurationHash)
 assert.ok(byName.csforge_pack_relist.parameters.properties.approvalId)
 assert.equal(byName.csforge_pack_relist_preview.isConcurrencySafe({ id: 'pack' }), true)
 assert.equal(byName.csforge_pack_relist.isConcurrencySafe({ id: 'pack' }), false)
-assert.equal(typeof byName.csforge_preview_assets.isConcurrencySafe, 'function')
 assert.equal(byName.csforge_prelist_brief.isConcurrencySafe({}), true)
 assert.equal(byName.csforge_inventory_summary.isConcurrencySafe({}), true)
 assert.equal(byName.csforge_preview_many.isConcurrencySafe({}), false)
@@ -183,8 +180,7 @@ for (const field of ['scheduledAt', '202', '原任务']) assert.ok(byName.csforg
 const inventoryCostResult = projectMcpResult({ content: [{ type: 'text', text: JSON.stringify({ assets: [{ assetId: 'a', costCents: 399, costSource: 'inventory' }, { assetId: 'b', costCents: null, costSource: null }] }) }] })
 assert.equal(JSON.parse(inventoryCostResult.text).assets[0].costCents, 399)
 assert.equal(JSON.parse(inventoryCostResult.text).assets[1].costCents, null)
-assert.ok(byName.csforge_preview_assets.parameters.properties.sets)
-assert.ok(byName.csforge_preview_assets.description.includes('1–25'))
+assert.equal(byName.csforge_prelist_brief.parameters.properties.detail.enum.includes('full'), true)
 assert.ok(byName.csforge_alipay_qr.output.schema.properties.imagePath)
 assert.ok(tools.every((tool) => typeof tool.execute === 'function'))
 
@@ -224,6 +220,16 @@ for (const marker of ['1.05', '1.4', '批量', '越极限越好', '纪念品', '
 }
 assert.ok(skills[0].resourceBase?.path?.includes('skills'))
 assert.ok(skills[0].path?.endsWith('SKILL.md'))
+const legacyTools = []
+const legacyCtx = {
+  tools: { register(definition) { legacyTools.push(definition); return () => {} } },
+  skills: { register() { return () => {} } },
+  effect(factory) { disposers.push(factory()) },
+}
+await apply(legacyCtx, { ...config, legacyTools: true })
+for (const legacyName of ['csforge_prelist_list', 'csforge_preview_assets']) {
+  assert.ok(legacyTools.some((tool) => tool.name === legacyName), `${legacyName} should be opt-in`)
+}
 for (const dispose of disposers.reverse()) dispose()
 console.log(`registered ${tools.length} CSForge tools and ${skills.length} embedded skill`)
 

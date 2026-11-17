@@ -15,6 +15,7 @@
     tokenFile: C:\Users\<you>\AppData\Local\CSForgeAgent\token.dpapi
     socksProxy: 127.0.0.1:10999
     timeoutMs: 90000
+    legacyTools: false
     tunnel:
       enabled: false
       executable: ''
@@ -23,6 +24,8 @@
       socksPort: 10999
       startupTimeoutMs: 10000
 ```
+
+`legacyTools` 默认为 `false`，默认不注册已合并的 `csforge_preview_assets`、`csforge_prelist_list`；如需兼容旧调用可设为 `true`。
 
 如果本机不能直连 CSForge，将 `socksProxy` 指向本机 SOCKS5 监听器。适配器也可按需启动私有隧道进程：
 

@@ -16,7 +16,7 @@
 
 ## 工具之外的只读辅助
 
-候选组合搜索脚本：`scripts/find-extreme-float.mjs`（Node，无网络/无令牌/无依赖）。仅用于生成候选；创建草稿前必须用 `csforge_preview_assets` 复核。
+候选组合搜索脚本：`scripts/find-extreme-float.mjs`（Node，无网络/无令牌/无依赖）。仅用于生成候选；创建草稿前必须用 `csforge_preview_many` 复核。
 
 ## 工具总表
 
@@ -27,9 +27,7 @@
 | `csforge_find_skins` | 只读 | 按中英文名搜索饰品目录 |
 | `csforge_analyze_recipe` | 只读 | 市场向的十件合约配方分析（成本/概率/磨损/收益） |
 | `csforge_inventory` | 只读 | 精简库存，默认只返回可用资产 |
-| `csforge_preview_assets` | 只读 | 一次预览 1–5 组候选十件材料 |
-| `csforge_prelist_list` | 只读 | 预上架/自动上架任务列表（精简） |
-| `csforge_prelist_brief` | 只读 | 预上架任务精简列表：每条带 `kind`，顶层带 `kinds` 分类型计数；不含 10 件材料明细 |
+| `csforge_prelist_brief` | 只读 | 预上架任务统一列表：默认精简，`detail=full` 返回材料与 simulation 明细 |
 | `csforge_prelist_simulate` | 只读 | 按当前市场价刷新预上架产物估值 |
 | `csforge_prelist_create` | 写 | 创建打包预上架草稿（锁定材料，不付款不提交） |
 | `csforge_furnace_create` | 写（敏感） | 创建合炉：10 件材料 + 用户售价/定价规则 + 押金方式；平台异步创建并扣/收押金 |
@@ -45,6 +43,8 @@
 | `csforge_save_recipe` | 写 | 保存 EcoSteam 平台配方（不占库存、不进预上架） |
 | `csforge_open_page` | 只读（导航） | 让在线网页切换页面 |
 | `csforge_request` | 视方法 | 兜底调用 `/api/` 业务接口；账户/管理员/令牌接口禁止 |
+
+> 兼容性：`csforge_preview_assets` 已合并到 `csforge_preview_many`；`csforge_prelist_list` 已合并到 `csforge_prelist_brief(detail:"full")`。本地 DSH 适配器默认不注册旧名；确需旧名时在 profile 配置 `legacyTools: true`。
 
 ## 常用参数与返回
 
@@ -97,7 +97,7 @@
 - `mainMaterialCount`：1–10，省略用站点默认
 - `sortBy`：`cost|probability|profit`
 - `timeoutMs`：5000–180000，默认 60000；超时会返回可读提示
-- 该工具是市场采购向的候选搜索，不等于“从用户库存直接组炉”；库存方案用 `csforge_inventory` + `csforge_preview_assets`。
+- 该工具是市场采购向的候选搜索，不等于“从用户库存直接组炉”；库存方案用 `csforge_inventory` + `csforge_preview_many`。
 
 返回：`{ status, data: { recipes:[{ materials:[{skinId,float,unitPrice,goodsNumber,purchaseFloat,skin:{...}}], cost, expectedValue, expectedProfit, roi, targetProbability, targetFloat, targetWearMode, currency, ... }], request, warnings, live } }`
 
@@ -132,22 +132,6 @@
 - 旧库存快照可补入已保存的同用户、同 Steam 账号、同凭据及同资产身份的库存成本，不新增购买历史扫描；没有证据的成本保持未知。
 - 原始 `GET /api/execution/inventory` 体积大，禁止用 `csforge_request` 拉取。
 
-### csforge_preview_assets
-参数：
-```json
-{
-  "steamId": "7656...",
-  "sets": [
-    { "assetIds": ["10 个不同 assetId"] },
-    { "assetIds": ["另一组 10 个"] }
-  ]
-}
-```
-- 1–25 组，每组恰好 10 个不同资产；可用 targetSkinId 仅返回目标产物。
-- 每组返回：`{ index, cost, expectedValue, pricingPending, outcomes:[{name,skinId,float,wear,probability,price}] }`
-- 单组失败返回 `{ index, error }`；`failed` 为失败组数。
-- 这是验证候选炉磨损/概率/价格的权威站点计算，创建草稿前必须用它复核。
-
 ### csforge_furnace_create
 
 参数（字段含义必须原样传达给用户，Agent 不得自行决定 `prices`/`visibility`/`depositMethod`）：
@@ -180,16 +164,6 @@
 
 两者都不传时返回最近 10 条合炉操作。只读：不创建、不付款、不提交。
 返回：`operation`（事务状态/押金状态）或 `operations` 列表，以及可选 `deposit`（金额、余额、支付方式、是否可付、是否已关闭）。
-
-### csforge_prelist_list
-
-参数：`{ "view": "active", "kind": "pack", "phase": "prelist" }`
-- `view`: `active|history`（默认 active）
-- `kind`: `pack|furnace`（默认 pack）
-- `phase`: `all|prelist|automatic`（默认 all；合炉忽略 phase）
-返回：`{ kind, view, phase, counts:{active,history}, items:[...] }`
-item 字段：`id、name、state、prelist、armed、configured、externalId、price、visibility、readyAt、scheduledAt、updatedAt、materials[]、simulation:{cost,expectedValue,outcomes 总数 + 最多 5 条按价格排序的产物}`（不含图片 URL 与完整皮肤对象）。
-- 预上架草稿特征：`prelist=true, armed=false, configured=false, state=queued`。
 
 ### csforge_prelist_create
 参数：
@@ -226,7 +200,7 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 | `selfOpen` | furnace，可选 | 是否允许自己开炉，省略为 true，由用户决定 |
 | `approvalId` | 确认重试 | 仅在网站批准后与全部原参数一起重试 |
 
-返回：`{status,id,configured,title,sellPrice,visibility,paymentMethod}`；合炉逐件售价使用 `csforge_prelist_list` 核对。`configured=true` 表示保存成功，发布另调 `csforge_prelist_arm`。返回 202 时等待批准后按原参数重试。
+返回：`{status,id,configured,title,sellPrice,visibility,paymentMethod}`；合炉逐件售价使用 `csforge_prelist_brief(detail:"full")` 核对。`configured=true` 表示保存成功，发布另调 `csforge_prelist_arm`。返回 202 时等待批准后按原参数重试。
 
 批量场景：`csforge_prelist_create_many` 后可用 `csforge_prelist_configure_many` 逐项配置两种类型；`csforge_prelist_create_configure_many` 共用出售总价的快捷流程适用于打包。用户明确要直接发布合炉时使用 `csforge_furnace_create`，其参数见对应工具。
 
@@ -307,7 +281,7 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 
 ## 结果不明时
 
-- 超时/连接中断/响应异常：先 `csforge_prelist_list` 或读取原业务状态核对；
+- 超时/连接中断/响应异常：先 `csforge_prelist_brief` 或读取原业务状态核对；
 - **不要**换 `idempotencyKey` 重新提交，可能重复创建或重复付款；
 - 明确被平台拒绝（如 ECO `ResultCode=1/2001`）时，读 `message` 并转告用户，不要盲目重试。
 
@@ -334,8 +308,9 @@ item 字段：`id、name、state、prelist、armed、configured、externalId、p
 - 自动按站点上限 5 组分片并发；传 `targetSkinId` 时每项只回 `target`（该产物的 float/wear/概率），否则回精简 outcomes；另给 `minFloat/maxFloat`。
 
 ### csforge_prelist_brief
-参数：`{ "view":"active", "kind":"pack", "phase":"all" }`
-- 返回 counts + 每个任务的 id/名称/状态/armed/configured/价格/可见性/材料件数，不含 10 件材料明细。
+参数：`{ "view":"active", "kind":"pack", "phase":"all", "detail":"summary" }`
+- 默认 `detail=summary`：返回 counts、kinds 与每个任务的 id/kind/名称/状态/armed/configured/价格/可见性/材料件数，不含 10 件材料明细。
+- `detail=full`：返回完整材料数组与 simulation，等价于已合并的 `csforge_prelist_list`；用于逐个核对而非几十炉批扫。
 
 ### csforge_inventory_summary
 参数：`{ "steamId":"17 位（可选）", "skinIds":["skin-..."], "includeIds":false, "limit":200 }`
