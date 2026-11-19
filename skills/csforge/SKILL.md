@@ -2,8 +2,8 @@
 name: csforge
 description: CSForge（CS2 饰品炼金 / 预上架 / 打包汰换 / 合炉）Agent 操作技能；当用户要求分析炼金配方、卡磨损找炉、筛选库存、创建或查看预上架、打包汰换、合炉、检查 EcoSteam 账号连接，或要使用任何 csforge_* MCP 工具时加载。包含工具选择、需求确认门禁、预上架/合炉流程、材料与磨损规则、安全红线和错误重试规范；本部署相关的昵称映射、示例价格与实测快照见 references/deployment-notes.md（使用前复核，可能过期）。适用于任何已接入 CSForge Streamable HTTP MCP 的 Agent 客户端，不绑定特定插件。
 metadata:
-  version: "0.4.10"
-  date: "2026-11-16"
+  version: "0.4.11"
+  date: "2026-11-19"
 ---
 
 # CSForge Agent Skill
@@ -293,6 +293,16 @@ node scripts/plan-packs.mjs --input plan.json --target 0.0699
 - 明确区分：只读分析结果 / 已创建草稿 / 已发布（人工）/ 结果未知。
 - 概率、成本、期望值必须注明来源（站点预览快照 vs 库存参考价）。
 - 不确定的业务规则先问用户，不要凭空假设；确认后更新本 Skill。
+
+## 12. No-CD freshness rule
+
+- A pack is "no-CD" only when every one of its 10 selected assets has `ready=true`, `locked=false`, and `prelisted=false` at the moment of preview/creation.
+- Before saying no-CD is feasible or impossible, refresh current inventory. Prefer `csforge_inventory` with `availableOnly=true`; for multi-skin search, parse the latest full inventory snapshot. Verify every selected main and filler individually.
+- Never reuse an old inventory JSON snapshot, an old prelist material list, cached `readyAt`/`tradableAfter`, or chat memory as proof of current readiness. Cooldowns expire and `ready` can become true.
+- `ready=false` alone does not prove cooldown: it may mean locked, prelisted, or Status/Tradable/CanPublish is not satisfied. Conversely, an earlier `ready=false` may already be stale.
+- For a specific target, also verify that at least one main from the target collection is currently ready and available. Plenty of low-P fillers does not remove the target-collection main requirement.
+- If currently infeasible, recompute against the fresh available set and state the minimum reachable wear and the actual missing constraint. A `preview_many` error such as inventory changed means refresh and retry analysis, not "no-CD impossible".
+- If a prelist/listing is already armed or submitted, do not suggest cancelling it to free materials unless its current state says cancellation is allowed; platform-locked materials cannot be released through `prelist_cancel`.
 
 ## 参考
 
